@@ -562,8 +562,9 @@ socket.on("roomClosed",x=>{
 
 socket.on("errorMsg",m=>{showMsg(role==="teacher"?"adminMsg":"studentMsg",m,true);toast(m,true)});
 socket.on("questionsSaved",x=>{toast(`Berhasil menyimpan ${x.count} soal.`);});
-socket.on("questionsGenerated",x=>{editorQuestions=(state?.questionList||[]).map(q=>({...q,opts:[...(q.opts||[])]}));renderQuestionEditor();toast(`✨ ${x.count} soal otomatis dibuat untuk ${x.className} • ${x.subject}.`);adminTab("questions",document.querySelector(".admin-nav .tab-btn:nth-child(2)"));});
+socket.on("questionsGenerated",x=>{editorQuestions=(state?.questionList||[]).map(q=>({...q,opts:[...(q.opts||[])]}));renderQuestionEditor();toast(x?.fallback?`⚡ ${x.count} soal lokal digunakan karena batas AI tercapai.`:`✨ ${x.count} soal otomatis dibuat untuk ${x.className} • ${x.subject}.`);adminTab("questions",document.querySelector(".admin-nav .tab-btn:nth-child(2)"));});
 socket.on("generationStarted",x=>{toast(`⏳ Sedang membuat ${x.count} soal${x.source==="online"?" dari internet + AI":" otomatis"}...`);});
+socket.on("generationFallback",x=>{toast(x?.message||"OpenAI sedang dibatasi. Generator lokal digunakan otomatis.",false);});
 socket.on("generationFailed",x=>{toast(x?.message||"Gagal membuat soal.",true);});
 socket.on("quizSaved",x=>{quizBank=x.quizzes||quizBank;populateQuizSelect();renderQuizBank();el("quizName").value="";el("quizDescription").value="";toast(`Kuis “${x.quiz.name}” tersimpan permanen.`);});
 socket.on("quizDeleted",x=>{quizBank=x.quizzes||[];populateQuizSelect();renderQuizBank();toast("Kuis berhasil dihapus.");});

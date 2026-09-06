@@ -215,3 +215,12 @@ Default port: `3000`.
 - Structured Outputs mewajibkan tepat 4 opsi dan jumlah soal per batch.
 - Menangani status incomplete/failed dari Responses API dengan pesan error yang lebih jelas.
 - Tetap mendukung web search dan GPT-5.6 Luna.
+
+
+### v3.20 — AI hemat token + fallback otomatis
+- Generator AI memakai batch kecil (5 soal), prompt lebih ringkas, schema JSON minimal, dan batas output 3.000 token.
+- Web Search tetap aktif dengan konteks `low` agar lebih hemat token.
+- Error HTTP 429 / rate limit / TPM OpenAI dideteksi otomatis.
+- Jika AI terkena rate limit, QUIZ NUSANTARA otomatis beralih ke generator lokal tanpa menggagalkan pembuatan soal/room.
+- Admin mendapat notifikasi bahwa generator lokal sedang digunakan.
+- API key OpenAI tetap disimpan hanya di Railway Variables.

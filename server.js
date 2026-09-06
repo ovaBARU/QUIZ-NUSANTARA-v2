@@ -16,7 +16,7 @@ app.get("/", (req, res) => {
   res.sendFile(path.join(process.cwd(), "public", "index.html"));
 });
 app.get("/health", (req, res) => {
-  res.json({ ok: true, app: "QUIZ NUSANTARA", version: "3.19.0" });
+  res.json({ ok: true, app: "QUIZ NUSANTARA", version: "3.20.0" });
 });
 
 app.use(express.json({ limit: "1mb" }));
@@ -233,107 +233,97 @@ function generatedQuestions(className, subject, count=10) {
   return shuffleArray(base).slice(0,count).map((q,i)=>({...q,id:i+1}));
 }
 
+function isOpenAIRateLimitError(err) {
+  const msg = String(err?.message || err || "");
+  return err?.code === "OPENAI_RATE_LIMIT" || err?.status === 429 || /rate.?limit|tokens per min|TPM|too many requests/i.test(msg);
+}
+
 async function generateOnlineQuestions(className, subject, count=30, difficulty="sedang") {
   if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY belum diatur di Railway.");
-  const safeCount = Math.min(100, Math.max(5, Number(count) || 30));
+  const safeCount = Math.min(30, Math.max(5, Number(count) || 10));
   const grade = String(className || "SD 1").trim();
   const lesson = String(subject || "Matematika").trim();
-  const level = String(difficulty || "sedang").trim().toLowerCase();
+  const level = String(difficulty || "sedang").trim();
   const gradeNum = Number(grade.match(/\d+/)?.[0] || 1);
   const phase = grade.startsWith("SD") ? (gradeNum <= 2 ? "Fase A" : gradeNum <= 4 ? "Fase B" : "Fase C") : grade.startsWith("SMP") ? "Fase D" : "Fase E/F";
 
-  // Batch kecil + retry membuat generator jauh lebih tahan terhadap keluaran AI yang kurang lengkap.
+  // v3.20: hemat token — batch 5, prompt ringkas, schema minimal, tanpa retry saat rate-limit.
   const batchSize = 5;
   const all = [];
 
   for (let offset = 0; offset < safeCount; offset += batchSize) {
     const batchCount = Math.min(batchSize, safeCount - offset);
-    let accepted = [];
-    let lastError = "";
-
-    for (let attempt = 1; attempt <= 3 && accepted.length < batchCount; attempt++) {
-      const need = batchCount - accepted.length;
-      const prompt = `Buat TEPAT ${need} soal kuis pilihan ganda berbahasa Indonesia untuk ${grade} (${phase}), mata pelajaran ${lesson}, tingkat kesulitan ${level}.
-
-Selaras dengan Kurikulum Merdeka dan pendekatan Pembelajaran Mendalam: memahami, mengaplikasi, merefleksi; mindful, meaningful, joyful; serta penalaran/pemecahan masalah sesuai usia.
-Gunakan web search untuk memeriksa referensi resmi terbaru bila relevan. Prioritaskan kurikulum.kemdikbud.go.id dan kemdikdasmen.go.id. Jangan mengarang nomor dokumen CP.
-
-ATURAN WAJIB:
-- TEPAT ${need} objek soal.
-- Setiap objek memiliki tepat 4 pilihan pada opts.
-- Hanya 1 jawaban benar.
-- a adalah indeks 0=A, 1=B, 2=C, 3=D.
-- subject harus persis ${lesson}.
-- e harus berisi penjelasan singkat; jika tidak diperlukan, tetap isi alasan jawaban benar dalam 1 kalimat.
-- Jangan membutuhkan gambar/data eksternal yang tidak diberikan.
-- Kembalikan HANYA JSON sesuai schema.`;
-
-      const schema = {
-        type: "object",
-        properties: {
-          questions: {
-            type: "array",
-            minItems: need,
-            maxItems: need,
-            items: {
-              type: "object",
-              properties: {
-                q: { type: "string", minLength: 1 },
-                opts: { type: "array", minItems: 4, maxItems: 4, items: { type: "string", minLength: 1 } },
-                a: { type: "integer", minimum: 0, maximum: 3 },
-                e: { type: "string", minLength: 1 },
-                subject: { type: "string", minLength: 1 }
-              },
-              required: ["q","opts","a","e","subject"],
-              additionalProperties: false
-            }
+    const prompt = `Buat tepat ${batchCount} soal pilihan ganda berbahasa Indonesia untuk ${grade} (${phase}), mata pelajaran ${lesson}, tingkat ${level}. Selaras Kurikulum Merdeka dan Pembelajaran Mendalam, sesuai usia. Gunakan web search bila perlu untuk memeriksa fakta terbaru dan prioritaskan sumber resmi Indonesia. JSON saja. Setiap soal tepat 4 opsi A-D dan tepat 1 jawaban benar. a adalah indeks jawaban benar 0-3.`;
+    const schema = {
+      type: "object",
+      properties: {
+        questions: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              q: { type: "string" },
+              opts: { type: "array", items: { type: "string" } },
+              a: { type: "integer" }
+            },
+            required: ["q", "opts", "a"],
+            additionalProperties: false
           }
-        },
-        required: ["questions"],
-        additionalProperties: false
-      };
-
-      try {
-        const response = await fetch("https://api.openai.com/v1/responses", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${OPENAI_API_KEY}` },
-          body: JSON.stringify({
-            model: OPENAI_MODEL,
-            tools: [{ type: "web_search", search_context_size: "medium" }],
-            input: prompt,
-            text: { format: { type: "json_schema", name: "quiz_questions", strict: true, schema } },
-            max_output_tokens: 8000,
-            store: false
-          })
-        });
-        const data = await response.json();
-        if (!response.ok) throw new Error(data?.error?.message || `OpenAI HTTP ${response.status}`);
-        if (data?.status === "incomplete") throw new Error("Keluaran AI belum selesai.");
-        if (data?.status === "failed") throw new Error(data?.error?.message || "OpenAI gagal memproses permintaan.");
-
-        const raw = data?.output_text;
-        const parsed = JSON.parse(raw || "{}");
-        const batch = cleanQuizQuestions(parsed?.questions || []);
-        const valid = batch.filter(q => q.q && q.opts.length === 4 && Number.isInteger(q.a) && q.a >= 0 && q.a < 4 && q.subject === lesson);
-        if (valid.length) {
-          accepted.push(...valid);
-          // Hindari duplikasi bila retry menghasilkan soal yang sama.
-          const seen = new Set();
-          accepted = accepted.filter(q => { const k=q.q.trim().toLowerCase(); if(seen.has(k)) return false; seen.add(k); return true; }).slice(0, batchCount);
         }
-        if (accepted.length < batchCount) lastError = `AI hanya menghasilkan ${accepted.length}/${batchCount} soal valid (percobaan ${attempt}/3).`;
-      } catch (err) {
-        lastError = err?.message || "Kesalahan saat menghubungi AI.";
-      }
-    }
+      },
+      required: ["questions"],
+      additionalProperties: false
+    };
 
-    if (accepted.length < batchCount) {
-      throw new Error(`${lastError} Batch ${offset + 1}-${offset + batchCount} belum lengkap. Coba lagi atau gunakan generator lokal.`);
+    const response = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${OPENAI_API_KEY}` },
+      body: JSON.stringify({
+        model: OPENAI_MODEL,
+        tools: [{ type: "web_search", search_context_size: "low" }],
+        input: prompt,
+        text: { format: { type: "json_schema", name: "quiz_questions", strict: true, schema } },
+        max_output_tokens: 3000,
+        store: false
+      })
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      const e = new Error(data?.error?.message || `OpenAI HTTP ${response.status}`);
+      e.status = response.status;
+      if (response.status === 429) e.code = "OPENAI_RATE_LIMIT";
+      throw e;
     }
-    all.push(...accepted.slice(0, batchCount));
+    if (data?.status === "incomplete") throw new Error("Keluaran AI belum selesai.");
+    if (data?.status === "failed") throw new Error(data?.error?.message || "OpenAI gagal memproses permintaan.");
+
+    let parsed;
+    try { parsed = JSON.parse(String(data?.output_text || "{}")); }
+    catch (_) { throw new Error("Format JSON dari AI tidak valid."); }
+
+    const rawQuestions = Array.isArray(parsed?.questions) ? parsed.questions : [];
+    const valid = rawQuestions
+      .map(q => ({
+        q: String(q?.q || "").trim(),
+        opts: Array.isArray(q?.opts) ? q.opts.map(v => String(v ?? "").trim()).filter(Boolean) : [],
+        a: Number(q?.a)
+      }))
+      .filter(q => q.q && q.opts.length === 4 && Number.isInteger(q.a) && q.a >= 0 && q.a < 4)
+      .map(q => ({ ...q, subject: lesson, e: "" }));
+
+    const seen = new Set(all.map(q => q.q.trim().toLowerCase()));
+    const unique = valid.filter(q => {
+      const key = q.q.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    if (unique.length < batchCount) {
+      throw new Error(`AI menghasilkan ${unique.length}/${batchCount} soal valid pada batch ${offset + 1}-${offset + batchCount}.`);
+    }
+    all.push(...unique.slice(0, batchCount));
   }
-
-  return all.slice(0, safeCount).map((q, i) => ({ ...q, id: i + 1 }));
+  return cleanQuizQuestions(all).map((q, i) => ({ ...q, id: i + 1, subject: lesson }));
 }
 
 function qItem(q, opts, a, e, subject) {
@@ -645,7 +635,11 @@ io.on("connection", socket => {
     } catch (err) {
       console.error("createRoom question generation error:", err);
       room.questions = generatedQuestions(finalClass, finalSubject, Math.min(30, finalCount), finalDifficulty);
-      socket.emit("generationFailed", { message: `AI gagal membuat soal. Room tetap dibuat dengan soal lokal (${room.questions.length} soal).` });
+      if (isOpenAIRateLimitError(err)) {
+        socket.emit("generationFallback", { reason: "rate_limit", message: `Batas token OpenAI tercapai. Room otomatis memakai ${room.questions.length} soal lokal.` });
+      } else {
+        socket.emit("generationFailed", { message: `AI gagal membuat soal. Room tetap dibuat dengan soal lokal (${room.questions.length} soal).` });
+      }
       emitRoom(room); emitAdmin(room);
     }
   });
@@ -865,10 +859,24 @@ io.on("connection", socket => {
     const mode = String(source || "local").toLowerCase();
     try {
       socket.emit("generationStarted", { source: mode, count: finalCount });
-      const questions = mode === "online" ? await generateOnlineQuestions(finalClass, finalSubject, finalCount, difficulty || "sedang") : generatedQuestions(finalClass, finalSubject, finalCount);
+      let questions;
+      let actualSource = mode;
+      if (mode === "online") {
+        try {
+          questions = await generateOnlineQuestions(finalClass, finalSubject, finalCount, difficulty || "sedang");
+        } catch (err) {
+          if (!isOpenAIRateLimitError(err)) throw err;
+          console.warn("OpenAI rate limit; using local generator fallback:", err.message);
+          questions = generatedQuestions(finalClass, finalSubject, finalCount, difficulty || "sedang");
+          actualSource = "local-fallback";
+          socket.emit("generationFallback", { reason: "rate_limit", message: "OpenAI sedang mencapai batas token. Soal lokal digunakan otomatis." });
+        }
+      } else {
+        questions = generatedQuestions(finalClass, finalSubject, finalCount, difficulty || "sedang");
+      }
       room.questions = questions; room.className = finalClass; room.subject = finalSubject; room.qIndex=0; room.questionStartedAt=null;
       emitRoom(room); emitAdmin(room);
-      socket.emit("questionsGenerated", { count:questions.length, className:room.className, subject:room.subject, source:mode, webSearch:mode === "online" });
+      socket.emit("questionsGenerated", { count:questions.length, className:room.className, subject:room.subject, source:actualSource, webSearch:actualSource === "online", fallback:actualSource === "local-fallback" });
     } catch (err) {
       console.error("generateQuestions error:", err);
       socket.emit("generationFailed", { message: err.message || "Gagal membuat soal." });
