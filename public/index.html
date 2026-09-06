@@ -91,11 +91,17 @@ h1{font-size:clamp(36px,7vw,76px);line-height:.95;margin:14px 0 10px;text-align:
   <button class="back" onclick="backHome()">← Kembali</button>
   <h2>🎒 Login sebagai Siswa</h2><p>Masukkan kode room yang diberikan admin.</p>
   <div class="grid">
-    <div><label>Kode Room</label><input id="code" placeholder="Contoh: ABCDE"></div>
-    <div><label>Nama Siswa</label><input id="student" placeholder="Nama kamu"></div>
-    <div id="teamField"><label>Nama Tim <span class="subtle">(untuk kuis TIM)</span></label><input id="team" placeholder="Contoh: Garuda — boleh dikosongkan untuk kuis perorang"></div>
+    <div><label>Kode Room</label><input id="code" placeholder="Contoh: ABCDE" autocomplete="off"></div>
+    <div><label>Nama Siswa</label><input id="student" placeholder="Nama kamu" autocomplete="name"></div>
+    <div id="teamField" class="hidden"><label>Nama Tim <span class="subtle">(untuk kuis TIM)</span></label><input id="team" placeholder="Contoh: Garuda — boleh dikosongkan"></div>
   </div><br><button onclick="join()">MASUK KE ROOM</button><div id="studentMsg" class="notice"></div>
 </section>
+<script>
+window.addEventListener("DOMContentLoaded",()=>{
+  const codeInput=document.getElementById("code");
+  if(codeInput)codeInput.addEventListener("input",detectStudentRoomMode);
+});
+</script>
 
 <section id="adminLogin" class="card form hidden">
   <button class="back" onclick="backHome()">← Kembali</button>
@@ -404,6 +410,29 @@ async function handleGoogleCredential(response){
     showMsg("googleStatus",e.message||"Login Google gagal.",true);
     toast(e.message||"Login Google gagal.",true);
   }
+}
+
+let roomLookupTimer=null;
+async function detectStudentRoomMode(){
+  const code=el("code")?.value.trim().toUpperCase()||"";
+  const field=el("teamField");
+  if(!field)return;
+  clearTimeout(roomLookupTimer);
+  field.classList.add("hidden");
+  if(code.length<3)return;
+  roomLookupTimer=setTimeout(async()=>{
+    try{
+      const r=await fetch(`/api/room-info?code=${encodeURIComponent(code)}`,{cache:"no-store"});
+      if(!r.ok)return;
+      const info=await r.json();
+      field.classList.toggle("hidden",info.quizMode==="individual");
+      const msg=el("studentMsg");
+      if(msg){
+        msg.className="notice";
+        msg.textContent=info.quizMode==="individual"?"👤 Kuis PERORANG — kolom Nama Tim tidak diperlukan.":"👥 Kuis TIM — silakan isi Nama Tim jika ingin bergabung ke tim tertentu.";
+      }
+    }catch(e){}
+  },250);
 }
 
 function join(){

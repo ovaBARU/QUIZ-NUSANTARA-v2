@@ -60,6 +60,15 @@ app.get("/api/quizzes", (req, res) => {
   res.json({ storage: storageMode, quizzes: quizBank.map(publicQuiz) });
 });
 
+// Public room lookup used only to show the correct student login fields before joining.
+// It intentionally exposes no questions, answers, student names, or admin data.
+app.get("/api/room-info", (req, res) => {
+  const code = String(req.query?.code || "").trim().toUpperCase();
+  const room = rooms.get(code);
+  if (!room) return res.status(404).json({ ok:false, message:"Room tidak ditemukan." });
+  res.json({ ok:true, code:room.code, quizMode:room.quizMode || "team", status:room.status });
+});
+
 app.get("/api/ai-status", (req, res) => {
   res.json({ enabled: !!OPENAI_API_KEY, model: OPENAI_MODEL, webSearch: !!OPENAI_API_KEY });
 });
