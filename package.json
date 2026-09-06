@@ -1,0 +1,18 @@
+{
+  "name": "quiz-nusantara",
+  "version": "2.8.0",
+  "private": true,
+  "description": "QUIZ NUSANTARA - multiplayer quiz tanpa login, admin dan siswa",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "socket.io": "^4.8.1",
+    "pg": "^8.16.3"
+  }
+}
