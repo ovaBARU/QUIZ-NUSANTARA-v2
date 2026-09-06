@@ -69,6 +69,76 @@ h1{font-size:clamp(36px,7vw,76px);line-height:.95;margin:14px 0 10px;text-align:
 @media(max-width:650px){.student-lobby-card{padding:18px 14px}.student-lobby-card .student-lobby-hero img{width:min(270px,75vw);max-height:190px}.student-lobby-card .student-wait-title{font-size:30px}.student-lobby-card .student-wait-sub{font-size:13px}}
 </style>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
+
+<style id="v3-20-compact">
+/* v3.20 compact viewport: fit primary screens without page-level vertical scrolling */
+html,body{width:100%;height:100%;min-height:100%;overflow:hidden}
+body{overscroll-behavior:none}
+.wrap{width:min(1040px,calc(100% - 18px));padding:10px;margin:auto}
+.card{padding:18px;border-radius:22px}
+section{max-width:100%;}
+#home,#studentLogin,#adminLogin,#lobby,#game,#finish{max-width:1040px;margin-left:auto;margin-right:auto}
+#home,#studentLogin,#adminLogin,#lobby,#game,#finish{max-height:calc(100dvh - 18px)}
+#home,#studentLogin,#adminLogin{overflow:hidden}
+#game{overflow:hidden}
+#finish{overflow:hidden}
+/* Keep the large dashboard inside the viewport. Long tables/lists use their own compact containers. */
+#lobby{overflow:hidden}
+.admin-shell{max-height:calc(100dvh - 18px);overflow:hidden}
+.admin-sidebar{max-height:calc(100dvh - 28px);overflow:hidden}
+.admin-main{max-height:calc(100dvh - 18px);overflow:hidden}
+.dashboard-card{margin-top:9px;padding:13px 15px}
+.dash-head{margin-bottom:9px}
+.dash-title h2{font-size:25px}
+.dash-grid{gap:8px}
+.dash-stat{padding:11px 13px}
+.dash-stat .value{font-size:26px}
+.action-row{gap:7px}
+.action-row button{padding:10px 12px;font-size:14px}
+.quick-card{gap:10px}
+.room-code-big{font-size:38px;margin:2px 0}
+.status-list{gap:3px}.status-item{padding:6px 0}
+.progress-track{margin-top:7px}
+.student-dashboard{margin:8px auto;padding:0 6px;max-height:calc(100dvh - 12px);overflow:hidden}
+.student-dashboard-card{padding:18px 16px;border-radius:24px}
+.student-dashboard-logo{width:62px;height:62px;margin-bottom:5px}
+.student-dashboard-title{font-size:clamp(30px,5vw,48px);margin:5px 0}
+.student-dashboard-sub{font-size:14px;line-height:1.35;margin-bottom:12px}
+.student-dashboard-hero img{width:min(300px,58vw);max-height:190px}
+.student-room-info{margin:10px 0;gap:6px}.student-dashboard-message{margin:10px auto 0;padding:11px 14px;font-size:13px}
+.quiz-setup{margin-top:10px;padding:13px;border-radius:18px}.level-grid{gap:8px;margin-top:10px}.level-card{min-height:110px;padding:12px}.level-card span{font-size:30px}.level-card strong{font-size:21px}
+.deep-learning-note{margin:9px 0;padding:9px 11px}.source-choice-wrap{margin:9px 0}.source-toggle{padding:9px 11px;margin:5px 0}
+.form{margin:2vh auto;max-width:600px}.form h2{font-size:26px}.form p{margin:6px 0 10px}.grid{gap:10px}input,select,button{padding:11px 13px}
+.login-choice{margin:1vh auto 0;padding:12px 16px}.login-choice .home-hero img{max-height:130px}.login-choice .choice-grid{margin-top:8px;gap:9px}.login-choice .choice{min-height:98px;padding:13px 15px}
+.question{font-size:clamp(22px,3vw,32px);margin:9px 0 12px}.opts{gap:9px}.opt{min-height:58px;padding:10px 12px}
+#game>.card{padding:12px}.admin-panel{padding:9px 12px}
+@media(max-height:850px) and (min-width:721px){
+  .wrap{padding:7px}.card{padding:14px;border-radius:20px}
+  .admin-shell{grid-template-columns:210px minmax(0,1fr);gap:10px}
+  .admin-sidebar{padding:12px}.admin-brand{padding-bottom:10px}.admin-nav{margin-top:10px;gap:5px}.admin-nav button{padding:9px 10px}
+  .dash-title h2{font-size:23px}.dash-grid{gap:7px}.dash-stat{padding:9px 11px}.dashboard-card{padding:11px 13px;margin-top:7px}
+  .quiz-setup{padding:11px}.level-card{min-height:96px}.level-card span{font-size:27px}
+  .student-dashboard-card{padding:14px}.student-dashboard-hero img{max-height:150px}.student-dashboard-sub{margin-bottom:8px}
+}
+@media(max-height:700px){
+  .wrap{padding:4px}.card{padding:11px;border-radius:18px}
+  .login-choice h1{font-size:34px}.login-choice .home-hero img{max-height:90px}.login-choice .choice{min-height:80px;padding:9px 11px}.login-choice .choice .icon{font-size:27px}.login-choice .choice h2{font-size:16px;margin:4px 0 2px}
+  .form{margin:1vh auto}.form h2{font-size:23px}.form p{font-size:13px;margin:4px 0 7px}.form .back{margin-bottom:7px}
+  .quiz-setup{margin-top:6px;padding:9px}.quiz-setup h3{font-size:20px}.level-grid{margin-top:7px}.level-card{min-height:78px;padding:8px}.level-card span{font-size:24px}.level-card strong{font-size:18px}.level-card small{font-size:11px}
+  .deep-learning-note{display:none}.source-choice-wrap{margin:6px 0}.source-toggle{padding:7px 9px}.source-toggle small{font-size:10px}
+  .student-dashboard-card{padding:10px}.student-dashboard-logo{width:48px;height:48px}.student-dashboard-hero img{max-height:105px}.student-dashboard-title{font-size:30px}.student-dashboard-sub{font-size:12px;line-height:1.25;margin:4px auto 7px}.student-room-info{margin:6px 0}.student-dashboard-message{padding:8px 10px;font-size:11px}
+  .dash-title p{font-size:11px}.dash-stat .value{font-size:22px}.dashboard-card{padding:9px 11px}.action-row button{padding:8px 9px;font-size:12px}
+}
+@media(max-width:720px){
+  html,body{overflow:hidden}.wrap{width:100%;padding:5px}.card{padding:12px}
+  .admin-shell{max-height:calc(100dvh - 8px)}.admin-main{max-height:calc(100dvh - 8px)}
+  .admin-sidebar{max-height:none}.admin-nav{margin-top:8px}.admin-nav button{padding:9px 8px;font-size:12px}
+  .dashboard-card{padding:11px 12px}.dash-grid{gap:6px}.dash-stat{padding:9px}.dash-stat .label{font-size:9px}.dash-stat .value{font-size:22px}.dash-stat .hint{font-size:9px}
+  .quick-card{grid-template-columns:1fr}.status-list{display:none}
+  .student-dashboard{margin:4px auto}.student-dashboard-card{padding:12px}.student-dashboard-hero img{width:min(250px,62vw);max-height:145px}
+}
+</style>
+
 </head>
 <body>
 <div class="bg"></div>
