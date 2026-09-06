@@ -52,9 +52,7 @@ h1{font-size:clamp(36px,7vw,76px);line-height:.95;margin:14px 0 10px;text-align:
 .room-actions button{width:auto;min-width:125px}
 .logout-btn{background:linear-gradient(135deg,#ffb347,#ff6b6b)!important}
 .close-room-btn{background:linear-gradient(135deg,#ff3d71,#b3135a)!important}
-.student-exit-row{display:flex;justify-content:center;gap:9px;flex-wrap:wrap;margin-top:14px}
-.student-exit-row button{width:auto;min-width:150px}
-@media(max-width:650px){.room-actions{flex-direction:column}.room-actions button,.student-exit-row button{width:100%}.quiz-logo{width:50px;height:50px}}
+@media(max-width:650px){.room-actions{flex-direction:column}.room-actions button{width:100%}.quiz-logo{width:50px;height:50px}}
 
 /* v3.7 student isolation + complete admin recap */
 .student-lobby-card{width:min(900px,100%);margin:0 auto;padding:26px 24px 22px;background:linear-gradient(145deg,#111b43e8,#0a1230e8);border-color:#7ce8ff22;box-shadow:0 28px 80px #0008}
@@ -199,14 +197,20 @@ h1{font-size:clamp(36px,7vw,76px);line-height:.95;margin:14px 0 10px;text-align:
     <p class="student-wait-sub">QUIZ akan segera dimulai. Tetap di halaman ini dan tunggu guru memulai permainan.</p>
     <div id="studentLobbyWaiting" class="waiting">⏳ Menunggu admin memulai permainan…</div>
     <h3 style="margin:14px 0 8px">👥 Tim Peserta</h3><div id="teams" class="teams"></div>
-    <div id="lobbyMsg" class="notice"></div><div class="student-exit-row"><button class="alt logout-btn" onclick="studentLogout()">↪ LOGOUT</button></div>
+    <div id="lobbyMsg" class="notice"></div>
   </div>
 </section>
 
 <section id="game" class="hidden">
   <div class="card">
-    <div class="topbar"><div><div id="qmeta" class="small"></div><div class="subtle" id="liveModeText">Mode permainan aktif</div></div><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end"><div class="timer-wrap"><div class="timer-label">WAKTU MENGERJAKAN</div><div id="qTimer" class="timer">00:00</div></div><button id="studentGameLogout" class="alt logout-btn" style="width:auto" onclick="studentLogout()">↪ LOGOUT</button></div></div>
-    <div class="progress-track"><div id="questionProgress" class="progress-bar"></div></div>
+    <div id="gameTopbar" class="topbar"><div><div id="qmeta" class="small"></div><div class="subtle" id="liveModeText">Mode permainan aktif</div></div><div class="timer-wrap"><div class="timer-label">WAKTU MENGERJAKAN</div><div id="qTimer" class="timer">00:00</div></div></div>
+    <div id="questionProgressTrack" class="progress-track"><div id="questionProgress" class="progress-bar"></div></div>
+    <div id="studentGameWaiting" class="student-lobby-card hidden" style="margin-top:18px">
+      <div class="student-lobby-hero"><img src="/student-home.png" alt="Siswa sedang menunggu permainan"></div>
+      <div class="student-wait-title">📚 Silahkan Menunggu</div>
+      <p class="student-wait-sub">Guru sedang menjalankan kuis. Soal dikelola dari halaman guru.</p>
+      <div id="studentGameWaitingText" class="waiting">⏳ Tetap di halaman ini dan tunggu arahan guru.</div>
+    </div>
     <div id="q" class="question"></div>
     <div id="opts" class="opts"></div>
     <div id="studentWaiting" class="waiting hidden">Jawaban tersimpan. Menunggu admin melanjutkan ke soal berikutnya.</div>
@@ -231,7 +235,7 @@ h1{font-size:clamp(36px,7vw,76px);line-height:.95;margin:14px 0 10px;text-align:
     <p class="tag">Kamu sudah menyelesaikan seluruh soal. Hebat! 🌟</p>
     <p class="subtle">Silakan tunggu arahan guru untuk melihat hasil permainan.</p>
     <div class="credit">QUIZ NUSANTARA • Dibuat oleh Odi Funan</div>
-    <div class="student-exit-row"><button class="alt logout-btn" onclick="studentLogout()">↪ LOGOUT</button></div>
+    
   </div>
   <div id="adminFinish" class="card hidden">
     <div class="finish-title">🏆 HASIL AKHIR</div>
@@ -431,12 +435,6 @@ function runGenerator(){
 }
 function clearPlayerSession(){sessionStorage.removeItem("quiz_nusantara_mode");sessionStorage.removeItem("quiz_nusantara_player_room");sessionStorage.removeItem("quiz_nusantara_player_team");sessionStorage.removeItem("quiz_nusantara_player_name");playerRoom="";playerTeamId="";playerName="";}
 function clearAdminSession(){sessionStorage.removeItem("quiz_nusantara_mode");sessionStorage.removeItem("quiz_nusantara_admin_token");sessionStorage.removeItem("quiz_nusantara_admin_logged");sessionStorage.removeItem("quiz_nusantara_admin_room");adminToken="";adminLogged=false;}
-function studentLogout(){
-  const c=codeNow||playerRoom;
-  let done=false; const finish=()=>{if(done)return;done=true;clearPlayerSession();role=null;codeNow="";teamId="";state=null;location.reload()};
-  if(socket.connected&&c){socket.emit("playerLogout",{code:c},()=>finish());setTimeout(finish,900);}else finish();
-}
-function studentExit(){studentLogout()}
 function adminLogout(){
   const c=codeNow||sessionStorage.getItem("quiz_nusantara_admin_room")||"";
   let done=false; const finish=()=>{if(done)return;done=true;clearAdminSession();role=null;codeNow="";state=null;location.reload()};
@@ -532,7 +530,7 @@ socket.on("generationStarted",x=>{toast(`⏳ Sedang membuat ${x.count} soal${x.s
 socket.on("generationFailed",x=>{toast(x?.message||"Gagal membuat soal.",true);});
 socket.on("quizSaved",x=>{quizBank=x.quizzes||quizBank;populateQuizSelect();renderQuizBank();el("quizName").value="";el("quizDescription").value="";toast(`Kuis “${x.quiz.name}” tersimpan permanen.`);});
 socket.on("quizDeleted",x=>{quizBank=x.quizzes||[];populateQuizSelect();renderQuizBank();toast("Kuis berhasil dihapus.");});
-socket.on("answerSaved",r=>{answeredLocal=true;el("studentWaiting").classList.remove("hidden");el("studentWaiting").textContent="✅ Jawaban tersimpan. Menunggu admin melanjutkan ke soal berikutnya.";renderQuestion();});
+socket.on("answerSaved",r=>{answeredLocal=true;renderQuestion();});
 socket.on("adminResults",r=>{adminResults=r;renderAdminResults();});
 socket.on("review",rows=>renderReview(rows));
 socket.on("questionStarted",x=>{
@@ -593,33 +591,56 @@ function renderRoom(){
     el("overviewParticipants").innerHTML=state.teams.length?state.teams.slice(0,5).map(t=>`<div class="status-item"><span><b>${escapeHtml(t.name)}</b></span><span>${t.members.length} siswa</span></div>`).join(""):"<div class='empty'>Belum ada peserta.</div>";
     if(!editorQuestions.length)resetQuestionEditor();
   }
-  if(state.status==="playing"){el("lobby").classList.add("hidden");el("game").classList.remove("hidden")}
+  if(state.status==="playing"){el("lobby").classList.add("hidden");el("game").classList.remove("hidden");if(role==="player")renderQuestion()}
   if(state.status==="finished")renderFinish();
 }
 
 function renderQuestion(){
-  if(!state?.current)return;
+  if(!state?.current){
+    if(role==="player"){
+      el("game").classList.remove("hidden");
+      el("studentGameWaiting").classList.remove("hidden");
+      el("gameTopbar").classList.add("hidden");
+      el("questionProgressTrack").classList.add("hidden");
+      el("q").classList.add("hidden");
+      el("opts").classList.add("hidden");
+    }
+    return;
+  }
   const q=state.current;
+  const isTeacher=role==="teacher";
+  const isPlayer=role==="player";
   el("qmeta").textContent=`SOAL ${state.qIndex+1} / ${state.total} • ${q.subject}`;
   el("questionProgress").style.width=((state.qIndex+1)/Math.max(1,state.total)*100)+"%";
-  if(role==="teacher"){
+  startTimer();
+
+  // Siswa tidak melihat halaman/isi soal. Selama permainan mereka hanya melihat halaman menunggu.
+  el("studentGameWaiting").classList.toggle("hidden",!isPlayer);
+  el("gameTopbar").classList.toggle("hidden",isPlayer);
+  el("questionProgressTrack").classList.toggle("hidden",isPlayer);
+  el("q").classList.toggle("hidden",!isTeacher);
+  el("opts").classList.toggle("hidden",!isTeacher);
+  el("questionProgress").classList.toggle("hidden",!isTeacher);
+  el("studentWaiting").classList.add("hidden");
+
+  if(isTeacher){
     el("liveQuestionNo").textContent=`SOAL ${state.qIndex+1} / ${state.total}`;
     el("liveQuestionText").textContent=q.q;
     el("liveQuestionSubject").textContent=q.subject;
     el("liveProgress").textContent=`${state.qIndex+1}/${state.total}`;
     el("liveTeams").textContent=state.teams.length;
     el("liveModeText").textContent="Admin Control Center • Perpindahan soal manual";
+    el("q").textContent=q.q;
+    el("opts").innerHTML="";
+    el("adminCurrentStatus").classList.remove("hidden");
+    el("adminCurrentStatus").textContent=state.qIndex===state.total-1?"Ini adalah soal terakhir. Tombol akan mengakhiri permainan.":"Admin mengendalikan perpindahan soal.";
+    el("adminDashboard").classList.remove("hidden");
   } else {
-    el("liveModeText").textContent="Jawab bersama tim • Menunggu kontrol admin";
+    el("liveModeText").textContent="Mode menunggu • Soal dikendalikan oleh guru";
+    el("studentGameWaitingText").textContent=`⏳ Guru sedang menjalankan soal ${state.qIndex+1} dari ${state.total}. Tetap di halaman ini dan tunggu hasil permainan.`;
+    el("adminCurrentStatus").classList.add("hidden");
+    el("adminDashboard").classList.add("hidden");
   }
-  startTimer();
-  el("q").textContent=q.q;
-  const locked=role!=="player"?false:(answeredLocal||state.myTeamAnswered);
-  el("opts").innerHTML=q.opts.map((o,i)=>`<button class="opt ${locked?"selected":""}" ${locked?"disabled":""} onclick="answer(${i})">${String.fromCharCode(65+i)}. ${escapeHtml(o)}</button>`).join("");
-  el("adminCurrentStatus").classList.toggle("hidden",role!=="teacher");
-  if(role==="teacher")el("adminCurrentStatus").textContent=state.qIndex===state.total-1?"Ini adalah soal terakhir. Tombol akan mengakhiri permainan.":"Admin mengendalikan perpindahan soal.";
-  el("adminDashboard").classList.toggle("hidden",role!=="teacher");
-  if(role!=="player")el("studentWaiting").classList.add("hidden");
 }
 
 function renderAdminResults(){
