@@ -1,8 +1,8 @@
 {
   "name": "quiz-nusantara",
-  "version": "2.8.0",
+  "version": "3.0.0",
   "private": true,
-  "description": "QUIZ NUSANTARA - multiplayer quiz tanpa login, admin dan siswa",
+  "description": "QUIZ NUSANTARA - multiplayer quiz dengan login admin dan generator soal lokal/AI berbasis web search",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
