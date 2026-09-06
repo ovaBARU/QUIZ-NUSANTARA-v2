@@ -232,9 +232,9 @@ h1{font-size:clamp(36px,7vw,76px);line-height:.95;margin:14px 0 10px;text-align:
 <section id="finish" class="hidden">
   <div id="studentFinish" class="card center hidden student-thanks">
     <div class="thanks-icon">🎉</div>
-    <div class="finish-title">Terima Kasih!</div>
-    <p class="tag">Kamu sudah menyelesaikan seluruh soal. Hebat! 🌟</p>
-    <p class="subtle">Silakan tunggu arahan guru untuk melihat hasil permainan.</p>
+    <div class="finish-title">Kuis Tuntas! Hebat! 🌟</div>
+    <p class="tag">Terima kasih sudah menyelesaikan seluruh tantangan QUIZ NUSANTARA.</p>
+    <p class="subtle">Kamu sudah berjuang sampai akhir. Santai dulu dan tunggu pengumuman hasil dari guru. 🚀</p>
     <div class="credit">QUIZ NUSANTARA • Dibuat oleh Odi Funan</div>
     
   </div>
@@ -245,7 +245,10 @@ h1{font-size:clamp(36px,7vw,76px);line-height:.95;margin:14px 0 10px;text-align:
     <div id="studentAnswerSummary"></div>
     <div class="admin-panel"><h2>📝 Rekap Jawaban Semua Tim</h2><div id="allResults" class="scroll"></div></div>
     <div class="admin-panel"><h2>🔎 Review Per Tim</h2><div class="grid"><select id="reviewTeam"></select><button onclick="review()">LIHAT REVIEW TIM</button></div><div id="review" class="scroll"></div></div>
-    <br><button class="alt" onclick="location.reload()">BUAT / GABUNG ROOM LAIN</button>
+    <div class="room-actions" style="margin-top:20px;justify-content:flex-start;flex-wrap:wrap">
+      <button class="close-room-btn" onclick="closeRoom()">⛔ TUTUP ROOM</button>
+      <button class="alt" onclick="location.reload()">BUAT / GABUNG ROOM LAIN</button>
+    </div>
     <div class="credit">QUIZ NUSANTARA • Dibuat oleh Odi Funan</div>
   </div>
 </section>

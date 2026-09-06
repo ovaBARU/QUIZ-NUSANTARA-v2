@@ -1,6 +1,8 @@
-# QUIZ NUSANTARA v3.8
+# QUIZ NUSANTARA v3.11
 
-## v3.8 — Logout, Tutup Room & Logo Tut Wuri
+## v3.11 — Rekap Akhir, Tutup Room & Halaman Terima Kasih
+- Pada halaman **HASIL AKHIR** admin tersedia tombol **⛔ TUTUP ROOM** agar guru dapat menutup room setelah rekap selesai.
+- Setelah kuis selesai, siswa diarahkan ke halaman akhir **Kuis Tuntas! Hebat! 🌟** dengan pesan apresiasi dan tanpa menampilkan kunci jawaban.
 - Tampilan siswa dipisahkan tegas dari Dashboard Admin.
 - Mode sesi (`player` / `teacher`) disimpan terpisah agar refresh/tab siswa tidak menghidupkan kembali Dashboard Admin.
 - Lobby siswa menampilkan **📚 Silahkan Menunggu** dan gambar `student-home.png`.
