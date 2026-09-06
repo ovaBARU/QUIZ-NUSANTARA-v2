@@ -1,5 +1,5 @@
 
-## v3.13
+## v3.14
 - Setelah Admin menekan SELESAI pada soal terakhir, Admin langsung masuk ke HASIL AKHIR.
 - Siswa menerima event selesai secara eksplisit dan otomatis diarahkan ke halaman apresiasi setelah kuis tuntas.
 - Ditambahkan sinkronisasi selesai untuk auto-finish saat semua tim sudah menjawab soal terakhir.
@@ -185,3 +185,9 @@ Default port: `3000`.
 - Siswa tidak memiliki tombol LOGOUT.
 - Pada soal terakhir, tombol admin berubah menjadi SELESAI dan membuka rekapan akhir.
 - Rekapan admin menampilkan semua soal, kunci, jawaban setiap tim, pengirim jawaban, serta status BENAR/SALAH/BELUM MENJAWAB.
+
+
+## v3.14
+- Dedicated student dashboard after joining a room.
+- Student browser mode is isolated from stale teacher session/roomState events.
+- Student lobby shows a polished “Silakan Menunggu” screen.

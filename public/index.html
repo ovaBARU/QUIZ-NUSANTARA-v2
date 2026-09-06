@@ -64,6 +64,8 @@ h1{font-size:clamp(36px,7vw,76px);line-height:.95;margin:14px 0 10px;text-align:
 #adminFinish .admin-panel{overflow:hidden}
 #adminFinish .result-table{min-width:760px}
 #adminFinish .result-table small{color:#9fb0d5}
+/* v3.14: dedicated student dashboard */
+.student-dashboard{max-width:1100px;margin:24px auto;padding:0 10px}.student-dashboard-card{background:linear-gradient(145deg,#111936,#0b1228);border:1px solid #ffffff18;border-radius:30px;padding:34px 24px;text-align:center;box-shadow:0 24px 70px #0006}.student-dashboard-logo{width:82px;height:82px;object-fit:contain;margin:0 auto 10px}.student-dashboard-title{font-size:clamp(34px,6vw,64px);font-weight:900;margin:8px 0;background:linear-gradient(90deg,#fff,#7ce8ff);-webkit-background-clip:text;background-clip:text;color:transparent}.student-dashboard-sub{font-size:18px;color:#b8c7ea;max-width:760px;margin:0 auto 20px;line-height:1.6}.student-status-pill{display:inline-flex;align-items:center;gap:8px;padding:10px 18px;border-radius:999px;background:#172449;border:1px solid #ffffff18;color:#9eeaff;font-weight:800}.student-status-dot{width:10px;height:10px;border-radius:50%;background:#35e0a0;box-shadow:0 0 14px #35e0a0}.student-dashboard-hero img{width:min(420px,78vw);max-height:300px;object-fit:contain}.student-room-info{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin:18px 0}.student-room-info .pill{font-size:14px}.student-dashboard-message{margin:20px auto 0;max-width:820px;padding:16px 18px;border-radius:18px;background:#ffffff08;color:#c7d3ef;font-size:16px}
 @media(max-width:650px){.student-lobby-card{padding:18px 14px}.student-lobby-card .student-lobby-hero img{width:min(270px,75vw);max-height:190px}.student-lobby-card .student-wait-title{font-size:30px}.student-lobby-card .student-wait-sub{font-size:13px}}
 </style>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
@@ -190,15 +192,22 @@ h1{font-size:clamp(36px,7vw,76px);line-height:.95;margin:14px 0 10px;text-align:
     </main>
   </div>
 
-  <div id="studentLobbyArea" class="card student-lobby-card hidden">
-    <div class="small">ROOM KUIS • <span id="roomcode" class="room" style="display:inline;font-size:30px;letter-spacing:4px"></span></div>
-    <div id="meta"></div>
-    <div class="student-lobby-hero"><img src="/student-home.png" alt="Siswi sedang belajar"></div>
-    <div class="student-wait-title">📚 Silahkan Menunggu</div>
-    <p class="student-wait-sub">QUIZ akan segera dimulai. Tetap di halaman ini dan tunggu guru memulai permainan.</p>
-    <div id="studentLobbyWaiting" class="waiting">⏳ Menunggu admin memulai permainan…</div>
-    <h3 style="margin:14px 0 8px">👥 Tim Peserta</h3><div id="teams" class="teams"></div>
-    <div id="lobbyMsg" class="notice"></div>
+  <div id="studentLobbyArea" class="student-dashboard hidden">
+    <div class="student-dashboard-card">
+      <img class="student-dashboard-logo" src="/tutwuri-quiz-logo.svg" alt="QUIZ NUSANTARA">
+      <div class="student-status-pill"><span class="student-status-dot"></span> ROOM TERHUBUNG</div>
+      <div class="student-dashboard-hero"><img src="/student-home.png" alt="Siswa sedang belajar"></div>
+      <div class="student-dashboard-title">📚 Silakan Menunggu</div>
+      <p class="student-dashboard-sub">Tenang, kamu sudah berada di room yang tepat. Guru sedang menyiapkan tantangan terbaik untuk kelasmu. Tetap di halaman ini dan bersiap untuk memulai perjalanan kuis! 🚀</p>
+      <div class="student-room-info">
+        <span class="pill">ROOM <b id="roomcode">-----</b></span>
+        <span class="pill" id="meta">Menunggu informasi sesi...</span>
+      </div>
+      <div id="studentLobbyWaiting" class="student-dashboard-message">⏳ <b>Guru sedang menyiapkan permainan.</b> Setelah kuis dimulai, soal akan muncul otomatis di layar ini.</div>
+      <h3 style="margin:22px 0 8px">👥 Tim Peserta</h3>
+      <div id="teams" class="teams"></div>
+      <div id="lobbyMsg" class="notice"></div>
+    </div>
   </div>
 </section>
 
@@ -232,9 +241,9 @@ h1{font-size:clamp(36px,7vw,76px);line-height:.95;margin:14px 0 10px;text-align:
 <section id="finish" class="hidden">
   <div id="studentFinish" class="card center hidden student-thanks">
     <div class="thanks-icon">🎉</div>
-    <div class="finish-title">Kuis Tuntas! Hebat! 🌟</div>
+    <div class="finish-title">Kuis Tuntas! Kamu Luar Biasa! 🌟</div>
     <p class="tag">Terima kasih sudah menyelesaikan seluruh tantangan QUIZ NUSANTARA.</p>
-    <p class="subtle">Kamu sudah berjuang sampai akhir. Santai dulu dan tunggu pengumuman hasil dari guru. 🚀</p>
+    <p class="subtle">Kamu sudah menaklukkan seluruh tantangan sampai garis akhir. Istirahat sejenak, bangga pada usahamu, dan tunggu pengumuman hasil dari guru. 🚀</p>
     <div class="credit">QUIZ NUSANTARA • Dibuat oleh Odi Funan</div>
     
   </div>
@@ -504,6 +513,7 @@ socket.on("connect",()=>{
     });
     return;
   }
+  if(appMode==="player"){ role="player"; adminToken=""; adminLogged=false; }
   const savedPlayerRoom=sessionStorage.getItem("quiz_nusantara_player_room");
   const savedPlayerTeam=sessionStorage.getItem("quiz_nusantara_player_team");
   const savedPlayerName=sessionStorage.getItem("quiz_nusantara_player_name");
@@ -518,7 +528,16 @@ socket.on("roomReady",x=>{
   toast(`✅ ${x.count} soal siap — ${x.className} • ${x.subject} • ${x.difficulty}`);
 });
 socket.on("created",x=>{appMode="teacher";sessionStorage.setItem("quiz_nusantara_mode","teacher");codeNow=x.code;adminLogged=true;sessionStorage.setItem("quiz_nusantara_admin_logged","1");sessionStorage.setItem("quiz_nusantara_admin_room",codeNow);if(x.adminToken){adminToken=x.adminToken;sessionStorage.setItem("quiz_nusantara_admin_token",adminToken)}hideAllMain();el("lobby").classList.remove("hidden")});
-socket.on("joined",x=>{role="player";appMode="player";sessionStorage.setItem("quiz_nusantara_mode","player");codeNow=x.code;teamId=x.teamId;playerRoom=x.code;playerTeamId=x.teamId;playerName=playerName||el("student")?.value||"Siswa";sessionStorage.setItem("quiz_nusantara_player_room",playerRoom);sessionStorage.setItem("quiz_nusantara_player_team",playerTeamId);sessionStorage.setItem("quiz_nusantara_player_name",playerName);hideAllMain();el("lobby").classList.remove("hidden")});
+socket.on("joined",x=>{
+  role="player"; appMode="player"; sessionStorage.setItem("quiz_nusantara_mode","player");
+  codeNow=x.code; teamId=x.teamId; playerRoom=x.code; playerTeamId=x.teamId;
+  playerName=playerName||el("student")?.value||"Siswa";
+  sessionStorage.setItem("quiz_nusantara_player_room",playerRoom);
+  sessionStorage.setItem("quiz_nusantara_player_team",playerTeamId);
+  sessionStorage.setItem("quiz_nusantara_player_name",playerName);
+  hideAllMain(); el("lobby").classList.remove("hidden");
+  if(state) renderRoom();
+});
 socket.on("roomClosed",x=>{
   stopTimer();
   if(role==="player")clearPlayerSession();
@@ -561,7 +580,10 @@ socket.on("questionStarted",x=>{
 });
 socket.on("roomState",s=>{
   state=s;
-  if(s.viewerRole) role=s.viewerRole;
+  // v3.14: a browser that entered the student flow must never be promoted
+  // back to the teacher dashboard by a stale roomState event.
+  if(appMode==="player") role="player";
+  else if(s.viewerRole) role=s.viewerRole;
   renderRoom();
   if(s.status==="playing") renderQuestion();
   if(s.status==="finished") renderFinish();
@@ -572,8 +594,10 @@ function renderRoom(){
   el("roomcode").textContent=state.code;
   el("meta").innerHTML=`<span class="pill">${escapeHtml(state.className)}</span><span class="pill">${escapeHtml(state.subject)}</span>`;
   el("teams").innerHTML=state.teams.length?state.teams.map(t=>`<div class="team"><b>${escapeHtml(t.name)}</b><br>${t.members.length}/10 siswa<br><span class="small">${t.members.map(escapeHtml).join(", ")||"Belum ada anggota"}</span><div class="team-score">${t.score} poin</div></div>`).join(""):"<div class='small'>Belum ada tim.</div>";
-  const isTeacher=role==="teacher";
-  const isPlayer=role==="player";
+  const isPlayer=appMode==="player" || role==="player";
+  const isTeacher=!isPlayer && (appMode==="teacher" || role==="teacher");
+  if(isPlayer) role="player";
+  if(isTeacher) role="teacher";
   // Hard isolation: student never renders the admin shell/dashboard.
   el("adminLobbyDashboard").classList.add("hidden");
   el("adminShell").classList.toggle("hidden",!isTeacher);
@@ -621,8 +645,10 @@ function renderQuestion(){
     return;
   }
   const q=state.current;
-  const isTeacher=role==="teacher";
-  const isPlayer=role==="player";
+  const isPlayer=appMode==="player" || role==="player";
+  const isTeacher=!isPlayer && (appMode==="teacher" || role==="teacher");
+  if(isPlayer) role="player";
+  if(isTeacher) role="teacher";
   const teamAnswered=!!state.myTeamAnswered || answeredLocal;
 
   el("gameTopbar").classList.remove("hidden");
