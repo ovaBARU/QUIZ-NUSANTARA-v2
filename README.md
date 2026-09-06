@@ -1,5 +1,5 @@
 
-## v3.12
+## v3.13
 - Setelah Admin menekan SELESAI pada soal terakhir, Admin langsung masuk ke HASIL AKHIR.
 - Siswa menerima event selesai secara eksplisit dan otomatis diarahkan ke halaman apresiasi setelah kuis tuntas.
 - Ditambahkan sinkronisasi selesai untuk auto-finish saat semua tim sudah menjawab soal terakhir.

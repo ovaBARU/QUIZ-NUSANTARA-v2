@@ -537,6 +537,14 @@ socket.on("quizSaved",x=>{quizBank=x.quizzes||quizBank;populateQuizSelect();rend
 socket.on("quizDeleted",x=>{quizBank=x.quizzes||[];populateQuizSelect();renderQuizBank();toast("Kuis berhasil dihapus.");});
 socket.on("answerSaved",r=>{answeredLocal=true;renderQuestion();});
 socket.on("adminResults",r=>{adminResults=r;renderAdminResults();if(role==="teacher"&&state?.status==="finished")renderFinish();});
+// Saat Admin menekan SELESAI (atau permainan selesai otomatis), semua siswa
+// wajib berpindah ke halaman apresiasi. Event ini sebelumnya belum ditangani
+// di sisi client siswa sehingga siswa tetap berada di halaman soal terakhir.
+socket.on("gameFinished",()=>{
+  if(state) state.status="finished";
+  stopTimer();
+  renderFinish();
+});
 socket.on("review",rows=>renderReview(rows));
 socket.on("questionStarted",x=>{
   answeredLocal=false;
