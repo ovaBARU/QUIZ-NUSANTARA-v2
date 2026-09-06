@@ -772,6 +772,7 @@ io.on("connection", socket => {
       room.questionStartedAt = null;
       emitRoom(room);
       emitAdmin(room);
+      io.to(room.code).emit("gameFinished", { code: room.code });
     } else {
       emitRoom(room);
       emitAdmin(room);
@@ -796,6 +797,7 @@ io.on("connection", socket => {
     }
     emitRoom(room);
     emitAdmin(room);
+    if (room.status === "finished") io.to(room.code).emit("gameFinished", { code: room.code });
   });
 
   socket.on("generateQuestions", async ({ code, className, subject, count, source, difficulty }) => {

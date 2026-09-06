@@ -1,3 +1,8 @@
+
+## v3.12
+- Setelah Admin menekan SELESAI pada soal terakhir, Admin langsung masuk ke HASIL AKHIR.
+- Siswa menerima event selesai secara eksplisit dan otomatis diarahkan ke halaman apresiasi setelah kuis tuntas.
+- Ditambahkan sinkronisasi selesai untuk auto-finish saat semua tim sudah menjawab soal terakhir.
 # QUIZ NUSANTARA v3.11
 
 ## v3.11 — Rekap Akhir, Tutup Room & Halaman Terima Kasih
