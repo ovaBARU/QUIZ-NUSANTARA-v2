@@ -16,7 +16,7 @@ app.get("/", (req, res) => {
   res.sendFile(path.join(process.cwd(), "public", "index.html"));
 });
 app.get("/health", (req, res) => {
-  res.json({ ok: true, app: "QUIZ NUSANTARA", version: "3.17.0" });
+  res.json({ ok: true, app: "QUIZ NUSANTARA", version: "3.18.0" });
 });
 
 app.use(express.json({ limit: "1mb" }));
@@ -239,58 +239,90 @@ async function generateOnlineQuestions(className, subject, count=30, difficulty=
   const grade = String(className || "SD 1").trim();
   const lesson = String(subject || "Matematika").trim();
   const level = String(difficulty || "sedang").trim().toLowerCase();
-  const phase = grade.startsWith("SD") ? (Number(grade.match(/\d+/)?.[0] || 1) <= 2 ? "Fase A" : Number(grade.match(/\d+/)?.[0] || 1) <= 4 ? "Fase B" : "Fase C") : grade.startsWith("SMP") ? "Fase D" : "Fase E/F";
-  const prompt = `Buat ${safeCount} soal kuis pilihan ganda berbahasa Indonesia untuk ${grade} (${phase}), mata pelajaran ${lesson}, tingkat kesulitan ${level}.
+  const gradeNum = Number(grade.match(/\d+/)?.[0] || 1);
+  const phase = grade.startsWith("SD") ? (gradeNum <= 2 ? "Fase A" : gradeNum <= 4 ? "Fase B" : "Fase C") : grade.startsWith("SMP") ? "Fase D" : "Fase E/F";
 
-WAJIB selaras dengan Kurikulum Merdeka Indonesia dan pendekatan Pembelajaran Mendalam (Deep Learning), bukan sekadar soal hafalan. Prioritaskan Capaian Pembelajaran (CP) dan konteks pembelajaran yang relevan untuk fase tersebut. Gunakan pengalaman belajar memahami, mengaplikasi, dan merefleksi; prinsip mindful, meaningful, joyful; serta dorong penalaran, pemecahan masalah, literasi/numerasi, koneksi konsep, dan penerapan pada situasi nyata sesuai usia. Untuk tingkat mudah, utamakan pemahaman konsep dan penerapan sederhana; sedang, penerapan dan analisis; sulit, analisis/evaluasi/pemecahan masalah yang tetap sesuai perkembangan peserta didik.
+  // Generate in small batches so large requests do not hit output/token limits.
+  const batchSize = 10;
+  const all = [];
 
-Gunakan web search untuk memeriksa referensi resmi terbaru. Prioritaskan sumber pemerintah/kurikulum Indonesia seperti kurikulum.kemdikbud.go.id, kemdikdasmen.go.id, dan dokumen CP resmi. Jangan menyalin kalimat panjang dari sumber. Jika ada ketidakpastian CP spesifik, jangan mengarang nomor/rumusan dokumen; buat soal berdasarkan kompetensi umum fase dan mata pelajaran yang konsisten dengan Kurikulum Merdeka.
+  for (let offset = 0; offset < safeCount; offset += batchSize) {
+    const batchCount = Math.min(batchSize, safeCount - offset);
+    const prompt = `Buat TEPAT ${batchCount} soal kuis pilihan ganda berbahasa Indonesia untuk ${grade} (${phase}), mata pelajaran ${lesson}, tingkat kesulitan ${level}.
 
-Setiap soal harus memiliki tepat 4 pilihan (A-D), hanya 1 jawaban benar, pengecoh masuk akal, bahasa sesuai usia, dan penjelasan singkat yang menjelaskan alasan jawaban benar. Variasikan konteks Indonesia dan kehidupan sehari-hari bila relevan. Hindari pertanyaan ambigu, trivia yang tidak terkait pembelajaran, dan soal yang membutuhkan gambar/data eksternal yang tidak diberikan.
+WAJIB selaras dengan Kurikulum Merdeka Indonesia dan pendekatan Pembelajaran Mendalam (Deep Learning), bukan sekadar soal hafalan. Prioritaskan Capaian Pembelajaran (CP) dan konteks pembelajaran yang relevan untuk fase tersebut. Gunakan pengalaman belajar memahami, mengaplikasi, dan merefleksi; prinsip mindful, meaningful, joyful; serta dorong penalaran, pemecahan masalah, literasi/numerasi, koneksi konsep, dan penerapan pada situasi nyata sesuai usia.
 
-Kembalikan HANYA JSON sesuai schema. Field a adalah indeks jawaban benar: 0=A, 1=B, 2=C, 3=D. Field subject harus sama dengan mata pelajaran.`;
-  const schema = {
-    type: "object",
-    properties: {
-      questions: {
-        type: "array",
-        items: {
-          type: "object",
-          properties: {
-            q: { type: "string" },
-            opts: { type: "array", items: { type: "string" } },
-            a: { type: "integer" },
-            e: { type: "string" },
-            subject: { type: "string" }
-          },
-          required: ["q","opts","a","e","subject"],
-          additionalProperties: false
+Untuk mudah: pemahaman konsep dan penerapan sederhana. Untuk sedang: penerapan dan analisis. Untuk sulit: analisis/evaluasi/pemecahan masalah yang tetap sesuai perkembangan peserta didik.
+
+Gunakan web search untuk memeriksa referensi resmi terbaru bila relevan. Prioritaskan sumber pemerintah/kurikulum Indonesia seperti kurikulum.kemdikbud.go.id dan kemdikdasmen.go.id. Jangan mengarang nomor/rumusan dokumen CP jika tidak yakin.
+
+ATURAN WAJIB:
+- Tepat ${batchCount} soal.
+- Setiap soal memiliki TEPAT 4 pilihan A-D.
+- Hanya 1 jawaban benar.
+- Pengecoh harus masuk akal dan tidak ambigu.
+- Bahasa sesuai usia siswa Indonesia.
+- Hindari soal yang membutuhkan gambar/data eksternal yang tidak diberikan.
+- Field a adalah indeks jawaban benar: 0=A, 1=B, 2=C, 3=D.
+- Field subject harus persis sama dengan: ${lesson}.
+- Kembalikan HANYA JSON sesuai schema.`;
+
+    const schema = {
+      type: "object",
+      properties: {
+        questions: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              q: { type: "string" },
+              opts: { type: "array", items: { type: "string" } },
+              a: { type: "integer" },
+              e: { type: "string" },
+              subject: { type: "string" }
+            },
+            required: ["q","opts","a","e","subject"],
+            additionalProperties: false
+          }
         }
-      }
-    },
-    required: ["questions"],
-    additionalProperties: false
-  };
-  const response = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${OPENAI_API_KEY}` },
-    body: JSON.stringify({
-      model: OPENAI_MODEL,
-      tools: [{ type: "web_search", search_context_size: "medium" }],
-      input: prompt,
-      text: { format: { type: "json_schema", name: "quiz_questions", strict: true, schema } },
-      store: false
-    })
-  });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data?.error?.message || `OpenAI HTTP ${response.status}`);
-  let parsed;
-  try { parsed = JSON.parse(data.output_text || "{}"); } catch (_) { throw new Error("AI mengembalikan format soal yang tidak valid."); }
-  const questions = cleanQuizQuestions(parsed.questions || []);
-  if (questions.length < 1) throw new Error("AI tidak menghasilkan soal yang valid.");
-  return questions.slice(0, safeCount);
-}
+      },
+      required: ["questions"],
+      additionalProperties: false
+    };
 
+    const response = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${OPENAI_API_KEY}` },
+      body: JSON.stringify({
+        model: OPENAI_MODEL,
+        tools: [{ type: "web_search", search_context_size: "medium" }],
+        input: prompt,
+        text: { format: { type: "json_schema", name: "quiz_questions", strict: true, schema } },
+        max_output_tokens: 12000,
+        store: false
+      })
+    });
+
+    const data = await response.json();
+    if (!response.ok) throw new Error(data?.error?.message || `OpenAI HTTP ${response.status}`);
+    if (data?.status === "incomplete") throw new Error(`AI menghentikan keluaran sebelum selesai (batch ${offset + 1}-${offset + batchCount}). Silakan coba jumlah soal lebih sedikit.`);
+    if (data?.status === "failed") throw new Error(data?.error?.message || "OpenAI gagal memproses permintaan.");
+
+    const raw = data?.output_text;
+    let parsed;
+    try { parsed = JSON.parse(raw || "{}"); }
+    catch (_) { throw new Error(`AI mengembalikan JSON yang tidak valid pada batch ${offset + 1}-${offset + batchCount}.`); }
+
+    const batch = cleanQuizQuestions(parsed?.questions || []);
+    const valid = batch.filter(q => q.q && q.opts.length === 4 && Number.isInteger(q.a) && q.a >= 0 && q.a < 4 && q.e);
+    if (valid.length !== batchCount) {
+      throw new Error(`AI menghasilkan ${valid.length}/${batchCount} soal valid pada batch ${offset + 1}-${offset + batchCount}.`);
+    }
+    all.push(...valid);
+  }
+
+  return all.slice(0, safeCount).map((q, i) => ({ ...q, id: i + 1 }));
+}
 
 function qItem(q, opts, a, e, subject) {
   return { q: String(q), opts: opts.map(String), a, e: String(e || ""), subject };

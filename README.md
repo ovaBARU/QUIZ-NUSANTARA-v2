@@ -203,8 +203,15 @@ Default port: `3000`.
 - Student lobby shows a polished “Silakan Menunggu” screen.
 
 
-## v3.17 — Mode Kuis TIM & PERORANG
+## v3.18 — Mode Kuis TIM & PERORANG
 - Admin dapat memilih tipe kuis: Kuis TIM atau Kuis PERORANG.
 - Mode PERORANG membuat setiap siswa memiliki skor dan jawaban mandiri.
 - Mode TIM mempertahankan mekanisme kolaborasi dan satu jawaban per tim.
 - Rekap Admin menyesuaikan label Tim/Siswa secara otomatis.
+
+
+## v3.18 – AI generator lebih stabil
+- Generate AI dipecah menjadi batch maksimal 10 soal agar tidak gagal karena output terlalu besar.
+- Structured Outputs mewajibkan tepat 4 opsi dan jumlah soal per batch.
+- Menangani status incomplete/failed dari Responses API dengan pesan error yang lebih jelas.
+- Tetap mendukung web search dan GPT-5.6 Luna.
