@@ -27,6 +27,7 @@ h1{font-size:clamp(36px,7vw,76px);line-height:.95;margin:14px 0 10px;text-align:
 @media(max-width:1000px){.admin-shell{grid-template-columns:1fr}.admin-sidebar{position:relative;top:0}.admin-nav{grid-template-columns:repeat(4,1fr)}.admin-nav button{text-align:center}.admin-side-room{display:none}.dash-grid{grid-template-columns:1fr 1fr}.quick-card,.live-admin-grid{grid-template-columns:1fr}}
 @media(max-width:650px){.admin-nav{grid-template-columns:1fr 1fr}.dash-head{align-items:flex-start;flex-direction:column}.dash-grid,.settings-grid{grid-template-columns:1fr 1fr}.participant-card{grid-template-columns:1fr 75px 70px}.room-code-big{font-size:34px;letter-spacing:5px}.timer-wrap{width:100%}}
 </style>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
 <div class="bg"></div>
@@ -35,12 +36,12 @@ h1{font-size:clamp(36px,7vw,76px);line-height:.95;margin:14px 0 10px;text-align:
 <section id="home" class="card login-choice">
   <div class="brand"><div class="brand-badge">🎯</div></div>
   <h1>QUIZ NUSANTARA</h1>
-  <div class="tag">Game kuis multiplayer untuk pembelajaran • Admin wajib login • Siswa cukup pakai kode room</div>
+  <div class="tag">Game kuis multiplayer untuk pembelajaran • Admin login dengan Google • Siswa cukup pakai kode room</div>
   <div class="creator">Dibuat oleh Odi Funan</div>
   <div class="home-hero"><img src="/student-home.png" alt="Siswa sedang belajar"></div>
   <div class="choice-grid">
     <button class="choice" onclick="showLogin('student')"><div class="icon">🎒</div><h2>Login sebagai Siswa</h2><p>Masuk ke room, pilih tim, lalu jawab soal bersama tim.</p></button>
-    <button class="choice" onclick="showLogin('admin')"><div class="icon">👨‍🏫</div><h2>Login sebagai Admin</h2><p>Buat room, mulai permainan, lanjutkan soal, dan pantau jawaban kedua tim.</p></button>
+    <button class="choice" onclick="showLogin('admin')"><div class="icon">👨‍🏫</div><h2>Login sebagai Admin</h2><p>Login dengan Google, buat room, mulai permainan, dan pantau jawaban kedua tim.</p></button>
   </div>
   <div class="mini">SD • SMP • SMA &nbsp;|&nbsp; Multiplayer real-time</div>
 </section>
@@ -57,14 +58,22 @@ h1{font-size:clamp(36px,7vw,76px);line-height:.95;margin:14px 0 10px;text-align:
 
 <section id="adminLogin" class="card form hidden">
   <button class="back" onclick="backHome()">← Kembali</button>
-  <h2>👨‍🏫 Login sebagai Admin</h2><p>Admin adalah pengendali permainan di kelas.</p>
-  <div><label>Nama Admin / Guru</label><input id="teacher" placeholder="Contoh: Bu Ani"></div><br><div><label>Password Admin</label><input id="adminPassword" type="password" placeholder="Masukkan password admin" autocomplete="current-password"></div><div class="small" style="margin-top:7px">Admin wajib login sebelum dapat membuat atau mengendalikan room.</div><br>
-  <div class="grid"><div><label>Jenjang & Kelas</label><select id="cls"></select></div><div><label>Mata Pelajaran</label><select id="sub"></select></div></div><br><label>Gunakan Kuis Tersimpan (opsional)</label><select id="quizSelect"><option value="">Gunakan soal bawaan / buat sendiri</option></select><div class="small" style="margin-top:7px">Kuis tersimpan akan tetap ada walaupun server di-restart.</div><br>
-  <button onclick="create()">🔐 LOGIN & BUAT ROOM</button><div id="adminMsg" class="notice"></div>
+  <h2>👨‍🏫 Login sebagai Admin</h2>
+  <p>Admin masuk menggunakan <strong>akun Google</strong>. Tidak ada password admin.</p>
+  <div class="grid">
+    <div><label>Jenjang & Kelas</label><select id="cls"></select></div>
+    <div><label>Mata Pelajaran</label><select id="sub"></select></div>
+  </div><br>
+  <label>Pilih Kuis Tersimpan (opsional)</label>
+  <select id="quizSelect"><option value="">Gunakan 100 soal bawaan / buat sendiri</option></select>
+  <div class="small" style="margin-top:7px">Tersedia bank bawaan 100 soal untuk setiap mata pelajaran dan setiap kelas.</div><br>
+  <div id="googleLoginButton" style="display:flex;justify-content:center;min-height:44px"></div>
+  <div id="googleStatus" class="notice" style="margin-top:10px"></div>
+  <div id="adminMsg" class="notice"></div>
 </section>
 
 <section id="lobby" class="hidden">
-  <div class="admin-shell">
+  <div class="admin-shell" id="adminShell">
     <aside class="admin-sidebar" id="adminSidebar">
       <div class="admin-brand"><div class="admin-brand-icon">🎯</div><div><strong>QUIZ NUSANTARA</strong><span>Admin Control Center</span></div></div>
       <div class="admin-nav">
@@ -91,7 +100,7 @@ h1{font-size:clamp(36px,7vw,76px);line-height:.95;margin:14px 0 10px;text-align:
 
       <div id="tab-overview" class="tab-panel">
         <div class="dashboard-card quick-card">
-          <div><div class="subtle">KODE ROOM</div><div id="dashRoomCode" class="room-code-big">-----</div><p class="subtle">Siswa memasukkan kode ini untuk bergabung ke permainan.</p><div class="action-row"><button onclick="copyRoomCode()">📋 SALIN KODE</button><button onclick="generateQuestions()">✨ GENERATE SOAL OTOMATIS</button><button onclick="startGame()">▶ MULAI PERMAINAN</button></div></div>
+          <div><div class="subtle">KODE ROOM</div><div id="dashRoomCode" class="room-code-big">-----</div><p class="subtle">Siswa memasukkan kode ini untuk bergabung ke permainan.</p><div class="action-row"><button onclick="copyRoomCode()">📋 SALIN KODE</button><button onclick="generateQuestions()">✨ GENERATE SOAL OTOMATIS</button><button id="startGameBtn" onclick="startGame()">▶ MULAI PERMAINAN</button></div></div>
           <div><h3>📚 Informasi Sesi</h3><div class="status-list"><div class="status-item"><span>Kelas</span><b id="dashClass">-</b></div><div class="status-item"><span>Mata pelajaran</span><b id="dashSubject">-</b></div><div class="status-item"><span>Pengajar</span><b id="dashTeacher">-</b></div></div></div>
         </div>
         <div class="dashboard-card"><h3>🚀 Kesiapan Kelas</h3><p class="subtle">Pastikan peserta sudah masuk sebelum permainan dimulai.</p><div class="progress-track"><div id="teamProgress" class="progress-bar"></div></div><div class="subtle" style="margin-top:8px" id="readinessText">Belum ada peserta.</div></div>
@@ -180,6 +189,7 @@ const cls=document.getElementById("cls"), sub=document.getElementById("sub");
 ["SD 1","SD 2","SD 3","SD 4","SD 5","SD 6","SMP 7","SMP 8","SMP 9","SMA 10","SMA 11","SMA 12"].forEach(x=>cls.add(new Option(x,x)));
 subjects.forEach(x=>sub.add(new Option(x,x)));
 refreshQuizBank();
+setupGoogleLogin();
 
 function el(id){return document.getElementById(id)}
 function hideAllMain(){["home","studentLogin","adminLogin","lobby","game","finish"].forEach(id=>el(id).classList.add("hidden"))}
@@ -187,26 +197,85 @@ function showLogin(which){hideAllMain();el(which==="student"?"studentLogin":"adm
 function backHome(){hideAllMain();el("home").classList.remove("hidden")}
 function showMsg(id,text,error=false){el(id).textContent=text;el(id).classList.toggle("error",error)}
 async function create(){
-  const teacherName=el("teacher").value.trim()||"Admin";
-  const password=el("adminPassword").value;
-  if(!teacherName)return showMsg("adminMsg","Nama admin/guru wajib diisi.",true);
-  if(!password)return showMsg("adminMsg","Password admin wajib diisi.",true);
+  if(adminLogged&&adminToken){
+    role="teacher";
+    socket.emit("adminAuth",{token:adminToken},res=>{
+      if(!res?.ok)return showMsg("adminMsg",res?.message||"Sesi Google sudah kedaluwarsa. Silakan login Google lagi.",true);
+      socket.emit("createRoom",{className:cls.value,subject:sub.value,teacherName:localStorage.getItem("quiz_nusantara_admin_name")||"Admin",quizId:el("quizSelect").value});
+    });
+    return;
+  }
+  showMsg("googleStatus","Silakan klik tombol Google untuk login sebagai admin.",false);
+}
+
+async function setupGoogleLogin(){
   try{
-    const r=await fetch("/api/admin/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:teacherName,password})});
+    const r=await fetch("/api/google-config");
+    const cfg=await r.json();
+    if(!cfg.enabled){
+      showMsg("googleStatus","Login Google belum dikonfigurasi. Tambahkan GOOGLE_CLIENT_ID di Railway.",true);
+      return;
+    }
+    if(!window.google?.accounts?.id){
+      setTimeout(setupGoogleLogin,500);
+      return;
+    }
+    google.accounts.id.initialize({
+      client_id:cfg.clientId,
+      callback:handleGoogleCredential,
+      auto_select:false,
+      cancel_on_tap_outside:true
+    });
+    const host=el("googleLoginButton");
+    host.innerHTML="";
+    google.accounts.id.renderButton(host,{theme:"outline",size:"large",text:"signin_with",shape:"pill",logo_alignment:"left",width:320});
+  }catch(e){
+    showMsg("googleStatus","Tidak dapat memuat login Google. Periksa konfigurasi Railway.",true);
+  }
+}
+
+async function handleGoogleCredential(response){
+  try{
+    showMsg("googleStatus","Memverifikasi akun Google...");
+    const r=await fetch("/api/admin/google-login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({credential:response.credential})});
     const data=await r.json();
-    if(!r.ok||!data.ok)throw new Error(data.message||"Login admin gagal.");
+    if(!r.ok||!data.ok)throw new Error(data.message||"Login Google gagal.");
     adminToken=data.token; adminLogged=true;
     localStorage.setItem("quiz_nusantara_admin_token",adminToken);
     localStorage.setItem("quiz_nusantara_admin_logged","1");
+    localStorage.setItem("quiz_nusantara_admin_name",data.name||"Admin");
+    localStorage.setItem("quiz_nusantara_admin_email",data.email||"");
+    role="teacher";
     socket.emit("adminAuth",{token:adminToken},res=>{
-      if(!res?.ok)return showMsg("adminMsg",res?.message||"Sesi admin gagal.",true);
-      role="teacher";
-      socket.emit("createRoom",{className:cls.value,subject:sub.value,teacherName,quizId:el("quizSelect").value});
+      if(!res?.ok)return showMsg("googleStatus",res?.message||"Sesi admin gagal.",true);
+      showMsg("googleStatus",`✅ Login Google berhasil: ${data.email}`);
+      socket.emit("createRoom",{className:cls.value,subject:sub.value,teacherName:data.name||"Admin",quizId:el("quizSelect").value});
     });
-  }catch(e){showMsg("adminMsg",e.message||"Login admin gagal.",true);toast(e.message||"Login admin gagal.",true)}
+  }catch(e){
+    showMsg("googleStatus",e.message||"Login Google gagal.",true);
+    toast(e.message||"Login Google gagal.",true);
+  }
 }
+
 function join(){role="player";socket.emit("joinRoom",{code:el("code").value.trim(),name:el("student").value.trim(),teamName:el("team").value.trim()})}
-function startGame(){if(role==="teacher"&&codeNow)socket.emit("startGame",{code:codeNow})}
+function startGame(){
+  if(role!=="teacher"||!codeNow){
+    toast("Kontrol MULAI hanya dapat digunakan oleh admin pada room yang aktif.",true);
+    return;
+  }
+  const btn=[...document.querySelectorAll("button")].find(b=>b.textContent.includes("MULAI PERMAINAN"));
+  if(btn)btn.disabled=true;
+  socket.emit("startGame",{code:codeNow},res=>{
+    if(btn)btn.disabled=false;
+    if(!res?.ok){
+      const msg=res?.message||"Permainan belum dapat dimulai.";
+      showMsg("adminMsg",msg,true);
+      toast(msg,true);
+      return;
+    }
+    toast(`▶ Permainan dimulai — ${res.total} soal.`);
+  });
+}
 async function generateQuestions(){
   if(role!=="teacher"||!codeNow)return toast("Buat room dan login sebagai admin terlebih dahulu.",true);
   const existing=document.getElementById("generatorModal"); if(existing) existing.remove();
@@ -302,6 +371,7 @@ function renderRoom(){
   el("meta").innerHTML=`<span class="pill">${escapeHtml(state.className)}</span><span class="pill">${escapeHtml(state.subject)}</span>`;
   el("teams").innerHTML=state.teams.length?state.teams.map(t=>`<div class="team"><b>${escapeHtml(t.name)}</b><br>${t.members.length}/10 siswa<br><span class="small">${t.members.map(escapeHtml).join(", ")||"Belum ada anggota"}</span><div class="team-score">${t.score} poin</div></div>`).join(""):"<div class='small'>Belum ada tim.</div>";
   el("adminLobbyDashboard").classList.toggle("hidden",true);
+  el("adminShell").classList.toggle("hidden",role!=="teacher");
   el("adminSidebar").classList.toggle("hidden",role!=="teacher"||state.status!=="lobby");
   el("studentLobbyArea").classList.toggle("hidden",role!=="player");
   el("studentLobbyWaiting").classList.toggle("hidden",role!=="player"||state.status!=="lobby");
