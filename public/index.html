@@ -19,6 +19,18 @@ h1{font-size:clamp(36px,7vw,76px);line-height:.95;margin:14px 0 10px;text-align:
 .admin-overview{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:18px}.stat-card{padding:16px;border-radius:18px;background:#ffffff0b;border:1px solid #ffffff12}.stat-card .num{font-size:30px;font-weight:1000;margin-top:4px}.admin-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:18px 0 12px}.tab-btn{width:auto;padding:10px 15px;background:#ffffff12}.tab-btn.active{background:linear-gradient(135deg,#6c63ff,#00b8ff)}.tab-panel{padding-top:6px}.question-editor{display:grid;grid-template-columns:52px 1fr 180px;gap:10px;align-items:start;padding:12px;border:1px solid #ffffff12;border-radius:16px;background:#ffffff08;margin:9px 0}.question-editor .num{font-size:22px;font-weight:1000;color:#8ff0ff;padding-top:10px;text-align:center}.question-editor textarea{width:100%;min-height:70px;resize:vertical;padding:12px 14px;border-radius:13px;border:1px solid #ffffff1c;background:#0c1432;color:#fff;font:inherit}.option-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}.option-grid input{padding:10px 12px}.question-actions{display:flex;gap:8px;margin-top:10px}.question-actions button{width:auto;padding:10px 14px}.admin-actions{display:flex;gap:10px;flex-wrap:wrap}.admin-actions button{width:auto}.badge-good{display:inline-block;padding:5px 9px;border-radius:999px;background:#1c8d5a33;color:#8ff0b5;font-weight:800}.team-admin{display:grid;grid-template-columns:1fr 120px 100px;gap:10px;align-items:center;padding:11px 0;border-bottom:1px solid #ffffff10}.subtle{color:#8fa1cb;font-size:13px}.empty{padding:20px;text-align:center;color:#91a2c9;border:1px dashed #ffffff18;border-radius:16px}.toast{position:fixed;right:20px;bottom:20px;z-index:20;padding:13px 16px;border-radius:14px;background:#101b40;border:1px solid #ffffff18;box-shadow:0 15px 40px #0007;font-weight:800}.toast.error{color:#ff9eb4}.toast.ok{color:#8ff0b5}.modal-backdrop{position:fixed;inset:0;z-index:30;background:#020513b8;backdrop-filter:blur(8px);display:grid;place-items:center;padding:18px}.modal-card{width:min(620px,100%);padding:22px;border:1px solid #ffffff18;border-radius:24px;background:linear-gradient(145deg,#121d42,#0b1230);box-shadow:0 30px 90px #0009}.modal-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}.modal-head h3{margin:0;font-size:24px}.modal-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px}.modal-actions{display:flex;gap:10px;margin-top:18px}.modal-actions button{width:auto;min-width:130px}.source-card{padding:12px;border:1px solid #ffffff12;border-radius:15px;background:#ffffff06}.source-card strong{display:block;margin-bottom:3px}.source-card small{color:#91a2c9}.source-card input{width:auto;margin-right:8px}.status-online{color:#8ff0b5;font-weight:800}.status-offline{color:#ffd166;font-weight:800}@media(max-width:600px){.modal-grid{grid-template-columns:1fr}.modal-actions{flex-direction:column}.modal-actions button{width:100%}}
 @media(max-width:900px){.admin-overview{grid-template-columns:1fr 1fr}.question-editor{grid-template-columns:40px 1fr}.question-editor>select{grid-column:2}.question-editor .question-actions{grid-column:2}.team-admin{grid-template-columns:1fr 90px 80px}}
 @media(max-width:720px){.choice-grid,.grid,.opts{grid-template-columns:1fr}.wrap{padding:12px}.card{padding:17px}.bg:before{background-size:700px auto;right:-210px;opacity:.28}.topbar{align-items:flex-start;flex-direction:column}.room{letter-spacing:5px}}
+
+/* v3.5 responsive/compact layout */
+.login-choice{max-width:940px;margin:2vh auto 0;padding:18px 22px}
+.login-choice h1{font-size:clamp(34px,5vw,58px);margin:8px 0 6px}
+.login-choice .tag{font-size:14px}.login-choice .creator{margin-top:5px}
+.login-choice .home-hero{margin:4px 0 0}.login-choice .home-hero img{width:min(430px,55%);max-height:180px}
+.login-choice .choice-grid{gap:12px;margin-top:10px}.login-choice .choice{min-height:120px;padding:17px 20px}.login-choice .choice .icon{font-size:38px}.login-choice .choice h2{font-size:21px;margin:7px 0 4px}.login-choice .choice p{font-size:13px}.login-choice .mini{margin-top:10px}
+#game>.card{padding:16px}.question{font-size:clamp(23px,3.2vw,34px);margin:12px 0 16px}.opts{gap:10px}.opt{min-height:60px;padding:11px 14px;font-size:16px}.admin-panel{margin-top:10px;padding-top:10px}.adminDashboard{margin-top:8px}.live-admin-grid{gap:10px}.live-question-card,.live-side{padding:12px}.live-question-text{font-size:20px!important;line-height:1.15!important}.admin-game-actions{margin-top:8px!important}.admin-game-actions button{padding:11px 14px}.admin-panel #adminCurrentResults{margin-top:8px!important}.admin-panel #adminCurrentResults .scroll{max-height:125px}.admin-panel>div:last-child{margin-top:8px!important}.admin-panel .leader{max-height:105px;overflow:auto;margin:6px 0;padding-left:20px}.admin-panel .leader li{padding:7px 10px;margin:4px 0}
+.student-lobby-card{max-width:860px;margin:12px auto 0;text-align:center}.student-lobby-hero{display:flex;justify-content:center;margin:2px 0 0}.student-lobby-hero img{width:min(300px,70%);max-height:220px;object-fit:contain;filter:drop-shadow(0 16px 24px rgba(0,0,0,.35));animation:float 6s ease-in-out infinite}.student-wait-title{font-size:clamp(24px,4vw,38px);font-weight:1000;margin:2px 0 5px}.student-wait-sub{color:#b8c8e9;margin:0 0 10px}.student-lobby-card .teams{text-align:left}.student-lobby-card .waiting{margin-top:10px}
+.student-thanks{padding:26px 18px}.student-thanks .finish-title{font-size:clamp(34px,7vw,58px);margin:4px}.student-thanks .tag{font-size:17px}.thanks-icon{font-size:64px;animation:pulse .8s ease-in-out infinite alternate}
+@media(max-width:720px){.login-choice{margin:1vh auto 0;padding:14px}.login-choice .home-hero img{width:min(360px,80%);max-height:150px}.login-choice .choice{min-height:105px;padding:14px}.login-choice .choice .icon{font-size:32px}.login-choice .choice h2{font-size:18px}.student-lobby-hero img{width:min(250px,80%);max-height:180px}}
+@media(min-width:721px){#game>.card{min-height:255px}.admin-panel{padding:10px 14px}.live-question-text{max-height:48px;overflow:hidden}.admin-panel #adminCurrentResults{max-height:145px;overflow:hidden}}
 </style>
 
 <style id="v26-style">
@@ -26,6 +38,9 @@ h1{font-size:clamp(36px,7vw,76px);line-height:.95;margin:14px 0 10px;text-align:
 .admin-shell{display:grid;grid-template-columns:250px minmax(0,1fr);gap:18px;align-items:start}.admin-sidebar{position:sticky;top:14px;padding:18px;border:1px solid var(--line);border-radius:24px;background:linear-gradient(180deg,#111a39ee,#0b1230ee);box-shadow:0 24px 60px #0006;backdrop-filter:blur(18px)}.admin-brand{display:flex;align-items:center;gap:11px;padding:6px 4px 18px;border-bottom:1px solid var(--line)}.admin-brand-icon{width:42px;height:42px;border-radius:14px;display:grid;place-items:center;background:linear-gradient(135deg,var(--accent),var(--cyan));font-size:21px}.admin-brand strong{display:block;font-size:15px}.admin-brand span{display:block;color:var(--muted);font-size:11px;margin-top:2px}.admin-nav{display:grid;gap:7px;margin-top:16px}.admin-nav button{background:transparent;border:1px solid transparent;text-align:left;padding:12px 13px;color:#b9c5e4;border-radius:13px;font-weight:850}.admin-nav button:hover{background:#ffffff0a;border-color:#ffffff10}.admin-nav button.active{background:linear-gradient(135deg,#7067ff33,#00c8ff1c);border-color:#7c7cff44;color:#fff}.admin-side-room{margin-top:18px;padding:14px;border-radius:17px;background:#ffffff08;border:1px solid var(--line)}.admin-side-room .label{font-size:10px;color:var(--muted);letter-spacing:1px;font-weight:900}.admin-side-room .code{font-size:25px;font-weight:1000;letter-spacing:5px;margin:5px 0 3px}.admin-main{min-width:0}.dash-head{display:flex;justify-content:space-between;align-items:center;gap:14px;margin-bottom:16px}.dash-title h2{margin:0;font-size:30px;letter-spacing:-.8px}.dash-title p{margin:5px 0 0;color:var(--muted);font-size:13px}.live-chip{display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:999px;background:#1b8f5c1c;border:1px solid #2be5a444;color:#9af8cb;font-weight:900;font-size:12px}.live-dot{width:8px;height:8px;border-radius:50%;background:#36e5a4;box-shadow:0 0 0 5px #36e5a415;animation:blink 1.4s infinite}@keyframes blink{50%{opacity:.35}}.dash-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.dash-stat{padding:17px;border-radius:18px;border:1px solid var(--line);background:linear-gradient(145deg,#ffffff0b,#ffffff04)}.dash-stat .label{color:var(--muted);font-size:11px;font-weight:900;letter-spacing:.7px}.dash-stat .value{font-size:31px;font-weight:1000;margin-top:6px}.dash-stat .hint{color:#7183ad;font-size:11px;margin-top:2px}.dashboard-card{margin-top:14px;padding:18px;border-radius:20px;border:1px solid var(--line);background:linear-gradient(145deg,#ffffff0a,#ffffff04)}.dashboard-card h3{margin:0 0 6px}.action-row{display:flex;gap:9px;flex-wrap:wrap}.action-row button{width:auto}.quick-card{display:grid;grid-template-columns:1.3fr .7fr;gap:14px}.room-code-big{font-size:46px;font-weight:1000;letter-spacing:8px;margin:4px 0}.progress-track{height:9px;background:#ffffff0d;border-radius:99px;overflow:hidden;margin-top:11px}.progress-bar{height:100%;background:linear-gradient(90deg,var(--accent),var(--cyan));border-radius:99px;width:0;transition:width .3s}.status-list{display:grid;gap:8px}.status-item{display:flex;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid #ffffff0b}.status-item:last-child{border-bottom:0}.question-editor{box-shadow:0 10px 28px #0002}.editor-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px}.editor-badge{font-size:11px;color:#aebbe0;background:#ffffff0b;padding:6px 9px;border-radius:99px}.participant-card{display:grid;grid-template-columns:1fr 100px 100px;gap:10px;align-items:center;padding:13px 0;border-bottom:1px solid #ffffff0d}.participant-card:last-child{border-bottom:0}.settings-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.readonly{opacity:.8}.live-admin-grid{display:grid;grid-template-columns:1.25fr .75fr;gap:14px}.live-question-card{padding:22px;border-radius:22px;background:linear-gradient(145deg,#151f46,#0e1735);border:1px solid #ffffff14}.live-question-number{font-size:11px;color:#91a2c9;font-weight:900;letter-spacing:1px}.live-question-text{font-size:clamp(25px,3.5vw,42px);font-weight:950;line-height:1.1;margin:12px 0}.live-side{display:grid;gap:12px}.mini-score{padding:15px;border-radius:17px;background:#ffffff08;border:1px solid var(--line)}.mini-score .n{font-size:27px;font-weight:1000}.mini-score .t{color:var(--muted);font-size:12px}.admin-game-actions{display:flex;gap:9px;margin-top:15px}.admin-game-actions button{width:auto}.timer-wrap{min-width:170px;justify-content:center}.empty{background:#ffffff06}
 @media(max-width:1000px){.admin-shell{grid-template-columns:1fr}.admin-sidebar{position:relative;top:0}.admin-nav{grid-template-columns:repeat(4,1fr)}.admin-nav button{text-align:center}.admin-side-room{display:none}.dash-grid{grid-template-columns:1fr 1fr}.quick-card,.live-admin-grid{grid-template-columns:1fr}}
 @media(max-width:650px){.admin-nav{grid-template-columns:1fr 1fr}.dash-head{align-items:flex-start;flex-direction:column}.dash-grid,.settings-grid{grid-template-columns:1fr 1fr}.participant-card{grid-template-columns:1fr 75px 70px}.room-code-big{font-size:34px;letter-spacing:5px}.timer-wrap{width:100%}}
+
+/* v3.6 admin curriculum wizard */
+.quiz-setup{margin-top:18px;padding:18px;border:1px solid #ffffff18;border-radius:22px;background:linear-gradient(145deg,#ffffff09,#ffffff03);box-shadow:0 18px 45px #0003}.setup-progress{display:flex;align-items:center;max-width:260px;margin:0 auto 18px}.setup-progress span{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:#ffffff0c;border:1px solid #ffffff18;color:#91a2c9;font-weight:900}.setup-progress span.active{background:linear-gradient(135deg,#7c6cff,#00c8ff);color:#fff;border-color:transparent}.setup-progress i{height:2px;flex:1;background:#ffffff16}.setup-kicker{font-size:11px;font-weight:900;letter-spacing:1.5px;color:#8ca0cc;margin-bottom:4px}.quiz-setup h3{margin:0 0 5px;font-size:24px}.level-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:16px}.level-card{width:auto;min-height:145px;padding:18px;border:1px solid #ffffff16;border-radius:20px;background:linear-gradient(145deg,#17234c,#0d1735);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;transition:.2s}.level-card:hover{transform:translateY(-3px);border-color:#7c6cff77;box-shadow:0 14px 30px #0004}.level-card span{font-size:38px}.level-card strong{font-size:25px}.level-card small{color:#91a2c9}.setup-back{width:auto!important;padding:7px 11px!important;margin-bottom:12px!important}.setup-grid{margin-top:14px}.deep-learning-note{display:flex;gap:10px;align-items:flex-start;margin:14px 0;padding:12px 14px;border-radius:15px;background:#00c8ff0b;border:1px solid #00c8ff22}.deep-learning-note strong{white-space:nowrap}.deep-learning-note span{color:#aab8d8;font-size:12px;line-height:1.45}.source-toggle{display:flex;align-items:flex-start;gap:9px;padding:12px 14px;margin:12px 0;border:1px solid #ffffff12;border-radius:15px;background:#ffffff06;cursor:pointer}.source-toggle input{width:auto;margin-top:3px}.source-toggle strong{display:block}.source-toggle small{display:block;color:#91a2c9;margin-top:3px}@media(max-width:720px){.level-grid{grid-template-columns:1fr}.level-card{min-height:105px}.deep-learning-note{flex-direction:column}.quiz-setup{padding:14px}}
 </style>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
@@ -60,15 +75,37 @@ h1{font-size:clamp(36px,7vw,76px);line-height:.95;margin:14px 0 10px;text-align:
   <button class="back" onclick="backHome()">← Kembali</button>
   <h2>👨‍🏫 Login sebagai Admin</h2>
   <p>Admin masuk menggunakan <strong>akun Google</strong>. Tidak ada password admin.</p>
-  <div class="grid">
-    <div><label>Jenjang & Kelas</label><select id="cls"></select></div>
-    <div><label>Mata Pelajaran</label><select id="sub"></select></div>
-  </div><br>
-  <label>Pilih Kuis Tersimpan (opsional)</label>
-  <select id="quizSelect"><option value="">Gunakan 100 soal bawaan / buat sendiri</option></select>
-  <div class="small" style="margin-top:7px">Tersedia bank bawaan 100 soal untuk setiap mata pelajaran dan setiap kelas.</div><br>
   <div id="googleLoginButton" style="display:flex;justify-content:center;min-height:44px"></div>
   <div id="googleStatus" class="notice" style="margin-top:10px"></div>
+
+  <div id="quizSetup" class="quiz-setup hidden">
+    <div class="setup-progress"><span id="setupStep1" class="active">1</span><i></i><span id="setupStep2">2</span></div>
+    <div id="levelStep">
+      <div class="setup-kicker">LANGKAH 1</div>
+      <h3>🎓 Pilih Jenjang Pendidikan</h3>
+      <p class="subtle">Soal akan disesuaikan dengan fase dan tingkat perkembangan peserta didik.</p>
+      <div class="level-grid">
+        <button class="level-card" onclick="chooseLevel('SD')"><span>🌱</span><strong>SD</strong><small>Kelas 1–6</small></button>
+        <button class="level-card" onclick="chooseLevel('SMP')"><span>🚀</span><strong>SMP</strong><small>Kelas 7–9</small></button>
+        <button class="level-card" onclick="chooseLevel('SMA')"><span>🎓</span><strong>SMA</strong><small>Kelas 10–12</small></button>
+      </div>
+    </div>
+    <div id="detailStep" class="hidden">
+      <button class="setup-back" onclick="backToLevel()">← Ganti jenjang</button>
+      <div class="setup-kicker">LANGKAH 2</div>
+      <h3 id="chosenLevelTitle">🎯 Detail Kuis</h3>
+      <p class="subtle">Pilih kelas, mata pelajaran, dan tingkat kesulitan. Generator AI akan menyusun soal yang selaras dengan Kurikulum Merdeka dan Pembelajaran Mendalam.</p>
+      <div class="grid setup-grid">
+        <div><label>Kelas</label><select id="cls"></select></div>
+        <div><label>Mata Pelajaran</label><select id="sub"></select></div>
+        <div><label>Kesulitan Soal</label><select id="difficulty"><option value="mudah">🟢 Mudah — memahami & menerapkan sederhana</option><option value="sedang" selected>🟡 Sedang — menerapkan & menganalisis</option><option value="sulit">🔴 Sulit — menganalisis, mengevaluasi & memecahkan masalah</option></select></div>
+        <div><label>Jumlah Soal</label><select id="questionCount"><option value="20">20 soal</option><option value="30" selected>30 soal</option><option value="50">50 soal</option><option value="100">100 soal</option></select></div>
+      </div>
+      <div class="deep-learning-note"><strong>🧠 Pembelajaran Mendalam</strong><span>Soal dirancang agar berkesadaran, bermakna, dan menyenangkan, dengan pengalaman belajar memahami → mengaplikasi → merefleksi.</span></div>
+      <label class="source-toggle"><input id="useAI" type="checkbox" checked> <span><strong>🌐 Gunakan Internet + AI (direkomendasikan)</strong><small id="aiHint">Memeriksa referensi pendidikan resmi sebelum menyusun soal.</small></span></label>
+      <button class="wide" onclick="createSelectedRoom()" id="createSelectedRoomBtn">🚀 BUAT ROOM & SOAL</button>
+    </div>
+  </div>
   <div id="adminMsg" class="notice"></div>
 </section>
 
@@ -129,10 +166,14 @@ h1{font-size:clamp(36px,7vw,76px);line-height:.95;margin:14px 0 10px;text-align:
     </main>
   </div>
 
-  <div id="studentLobbyArea" class="card" style="margin-top:18px">
-    <div class="topbar"><div><div class="small">ROOM KUIS</div><div id="roomcode" class="room"></div></div><div id="meta"></div></div>
-    <h2>👥 Tim Peserta</h2><div id="teams" class="teams"></div>
-    <div id="studentLobbyWaiting" class="waiting hidden">Menunggu admin memulai permainan…</div>
+  <div id="studentLobbyArea" class="card student-lobby-card hidden">
+    <div class="small">ROOM KUIS • <span id="roomcode" class="room" style="display:inline;font-size:30px;letter-spacing:4px"></span></div>
+    <div id="meta"></div>
+    <div class="student-lobby-hero"><img src="/student-home.png" alt="Siswi sedang belajar"></div>
+    <div class="student-wait-title">📚 Silahkan Menunggu</div>
+    <p class="student-wait-sub">QUIZ akan segera dimulai. Tetap di halaman ini dan tunggu guru memulai permainan.</p>
+    <div id="studentLobbyWaiting" class="waiting">⏳ Menunggu admin memulai permainan…</div>
+    <h3 style="margin:14px 0 8px">👥 Tim Peserta</h3><div id="teams" class="teams"></div>
     <div id="lobbyMsg" class="notice"></div>
   </div>
 </section>
@@ -159,11 +200,13 @@ h1{font-size:clamp(36px,7vw,76px);line-height:.95;margin:14px 0 10px;text-align:
 </section>
 
 <section id="finish" class="hidden">
-  <div id="studentFinish" class="card center hidden">
-    <div class="finish-title">🎉 Permainan Selesai</div>
-    <p class="tag">Terima kasih sudah bermain bersama tim.</p>
+  <div id="studentFinish" class="card center hidden student-thanks">
+    <div class="thanks-icon">🎉</div>
+    <div class="finish-title">Terima Kasih!</div>
+    <p class="tag">Kamu sudah menyelesaikan seluruh soal. Hebat! 🌟</p>
+    <p class="subtle">Silakan tunggu arahan guru untuk melihat hasil permainan.</p>
     <div class="credit">QUIZ NUSANTARA • Dibuat oleh Odi Funan</div>
-    <br><button class="alt" onclick="location.reload()">KEMBALI KE HALAMAN AWAL</button>
+    <br><button class="alt" onclick="studentExit()">KEMBALI KE HALAMAN AWAL</button>
   </div>
   <div id="adminFinish" class="card hidden">
     <div class="finish-title">🏆 HASIL AKHIR</div>
@@ -184,12 +227,16 @@ const socket=io();
 let state=null, adminResults=null, role=null, codeNow="", teamId="", answeredLocal=false, timerInterval=null, timerQuestionIndex=null, editorQuestions=[], quizBank=[];
 let adminToken=sessionStorage.getItem("quiz_nusantara_admin_token")||"";
 let adminLogged=sessionStorage.getItem("quiz_nusantara_admin_logged")==="1";
-const subjects=["GAME CAMPURAN","Bahasa Indonesia","Matematika","IPAS","Pendidikan Pancasila","Seni","PJOK"];
+let playerRoom=sessionStorage.getItem("quiz_nusantara_player_room")||"";
+let playerTeamId=sessionStorage.getItem("quiz_nusantara_player_team")||"";
+let playerName=sessionStorage.getItem("quiz_nusantara_player_name")||"";
+const subjects=["Bahasa Indonesia","Matematika","IPAS","Pendidikan Pancasila","Seni","PJOK"];
+let selectedLevel="";
 const cls=document.getElementById("cls"), sub=document.getElementById("sub");
-["SD 1","SD 2","SD 3","SD 4","SD 5","SD 6","SMP 7","SMP 8","SMP 9","SMA 10","SMA 11","SMA 12"].forEach(x=>cls.add(new Option(x,x)));
-subjects.forEach(x=>sub.add(new Option(x,x)));
+
 refreshQuizBank();
 setupGoogleLogin();
+refreshAIHint();
 
 function el(id){return document.getElementById(id)}
 function hideAllMain(){["home","studentLogin","adminLogin","lobby","game","finish"].forEach(id=>el(id).classList.add("hidden"))}
@@ -198,24 +245,54 @@ function showLogin(which){
     role="player";
     // Never reuse an admin session when a student is opening the student screen.
     adminToken=""; adminLogged=false;
+    sessionStorage.removeItem("quiz_nusantara_admin_token");
+    sessionStorage.removeItem("quiz_nusantara_admin_logged");
+    sessionStorage.removeItem("quiz_nusantara_admin_room");
   }
   hideAllMain();
   el(which==="student"?"studentLogin":"adminLogin").classList.remove("hidden");
 }
 function backHome(){hideAllMain();el("home").classList.remove("hidden")}
 function showMsg(id,text,error=false){el(id).textContent=text;el(id).classList.toggle("error",error)}
-async function create(){
-  if(adminLogged&&adminToken){
-    role="teacher";
-    socket.emit("adminAuth",{token:adminToken},res=>{
-      if(!res?.ok)return showMsg("adminMsg",res?.message||"Sesi Google sudah kedaluwarsa. Silakan login Google lagi.",true);
-      socket.emit("createRoom",{className:cls.value,subject:sub.value,teacherName:sessionStorage.getItem("quiz_nusantara_admin_name")||"Admin",quizId:el("quizSelect").value});
+function populateSetupClasses(level){
+  const map={SD:["SD 1","SD 2","SD 3","SD 4","SD 5","SD 6"],SMP:["SMP 7","SMP 8","SMP 9"],SMA:["SMA 10","SMA 11","SMA 12"]};
+  cls.innerHTML=(map[level]||[]).map(x=>`<option value="${x}">${x}</option>`).join("");
+  sub.innerHTML=subjects.map(x=>`<option value="${escapeAttr(x)}">${escapeHtml(x)}</option>`).join("");
+}
+function chooseLevel(level){
+  if(!adminLogged||!adminToken){return showMsg("googleStatus","Login Google terlebih dahulu.",true);}
+  selectedLevel=level; populateSetupClasses(level);
+  el("levelStep").classList.add("hidden"); el("detailStep").classList.remove("hidden");
+  el("setupStep1").classList.remove("active"); el("setupStep2").classList.add("active");
+  el("chosenLevelTitle").textContent=`🎯 ${level} — Pilih Detail Kuis`;
+}
+function backToLevel(){el("detailStep").classList.add("hidden");el("levelStep").classList.remove("hidden");el("setupStep1").classList.add("active");el("setupStep2").classList.remove("active");}
+function showAdminSetup(){
+  el("quizSetup").classList.remove("hidden");
+  el("levelStep").classList.remove("hidden"); el("detailStep").classList.add("hidden");
+  el("setupStep1").classList.add("active"); el("setupStep2").classList.remove("active");
+  selectedLevel="";
+}
+function createSelectedRoom(){
+  if(!adminLogged||!adminToken)return showMsg("adminMsg","Sesi Admin belum aktif.",true);
+  if(!selectedLevel)return showMsg("adminMsg","Pilih jenjang terlebih dahulu.",true);
+  const btn=el("createSelectedRoomBtn"); btn.disabled=true; btn.textContent="⏳ Menyiapkan room & soal...";
+  const source=el("useAI").checked?"online":"local";
+  role="teacher";
+  socket.emit("adminAuth",{token:adminToken},res=>{
+    if(!res?.ok){btn.disabled=false;btn.textContent="🚀 BUAT ROOM & SOAL";return showMsg("adminMsg",res?.message||"Sesi Admin kedaluwarsa.",true);}
+    socket.emit("createRoom",{className:cls.value,subject:sub.value,teacherName:sessionStorage.getItem("quiz_nusantara_admin_name")||"Admin",quizId:"",difficulty:el("difficulty").value,count:Number(el("questionCount").value),source},ack=>{
+      if(ack?.ok){showMsg("adminMsg","Room dibuat. Soal sedang disiapkan...",false);}else{btn.disabled=false;btn.textContent="🚀 BUAT ROOM & SOAL";showMsg("adminMsg",ack?.message||"Gagal membuat room.",true);}
     });
-    return;
-  }
-  showMsg("googleStatus","Silakan klik tombol Google untuk login sebagai admin.",false);
+  });
 }
 
+async function refreshAIHint(){
+  try{const r=await fetch("/api/ai-status");const x=await r.json();const cb=el("useAI"), hint=el("aiHint");
+    if(!x.enabled){cb.checked=false;cb.disabled=true;hint.textContent="OPENAI_API_KEY belum diatur di Railway. Soal tetap dapat dibuat dengan generator lokal.";}
+    else {cb.disabled=false;hint.textContent=`AI aktif (${x.model}) dan akan memeriksa referensi web pendidikan resmi sebelum menyusun soal.`;}
+  }catch(_){el("useAI").checked=false;el("useAI").disabled=true;el("aiHint").textContent="Status AI belum dapat diperiksa; gunakan generator lokal jika diperlukan.";}
+}
 async function setupGoogleLogin(){
   try{
     const r=await fetch("/api/google-config");
@@ -257,7 +334,7 @@ async function handleGoogleCredential(response){
     socket.emit("adminAuth",{token:adminToken},res=>{
       if(!res?.ok)return showMsg("googleStatus",res?.message||"Sesi admin gagal.",true);
       showMsg("googleStatus",`✅ Login Google berhasil: ${data.email}`);
-      socket.emit("createRoom",{className:cls.value,subject:sub.value,teacherName:data.name||"Admin",quizId:el("quizSelect").value});
+      showAdminSetup();
     });
   }catch(e){
     showMsg("googleStatus",e.message||"Login Google gagal.",true);
@@ -268,7 +345,12 @@ async function handleGoogleCredential(response){
 function join(){
   role="player";
   adminToken=""; adminLogged=false;
-  socket.emit("joinRoom",{code:el("code").value.trim(),name:el("student").value.trim(),teamName:el("team").value.trim()});
+  playerRoom=el("code").value.trim().toUpperCase();
+  playerName=el("student").value.trim();
+  sessionStorage.setItem("quiz_nusantara_player_room",playerRoom);
+  sessionStorage.setItem("quiz_nusantara_player_name",playerName);
+  sessionStorage.removeItem("quiz_nusantara_player_team");
+  socket.emit("joinRoom",{code:playerRoom,name:playerName,teamName:el("team").value.trim()});
 }
 function startGame(){
   if(role!=="teacher"||!codeNow){
@@ -311,6 +393,7 @@ function runGenerator(){
   document.getElementById("generatorModal")?.remove();
   socket.emit("generateQuestions",payload);
 }
+function studentExit(){sessionStorage.removeItem("quiz_nusantara_player_room");sessionStorage.removeItem("quiz_nusantara_player_team");sessionStorage.removeItem("quiz_nusantara_player_name");playerRoom="";playerTeamId="";playerName="";location.reload()}
 function adminLogout(){sessionStorage.removeItem("quiz_nusantara_admin_token");sessionStorage.removeItem("quiz_nusantara_admin_logged");adminToken="";adminLogged=false;role=null;codeNow="";state=null;location.reload()}
 function nextQuestion(){if(role==="teacher")socket.emit("nextQuestion",{code:codeNow})}
 function stopTimer(){if(timerInterval){clearInterval(timerInterval);timerInterval=null}}
@@ -359,11 +442,23 @@ socket.on("connect",()=>{
         sessionStorage.removeItem("quiz_nusantara_admin_token");sessionStorage.removeItem("quiz_nusantara_admin_logged");sessionStorage.removeItem("quiz_nusantara_admin_room");adminToken="";adminLogged=false;
       }
     });
+    return;
+  }
+  const savedPlayerRoom=sessionStorage.getItem("quiz_nusantara_player_room");
+  const savedPlayerTeam=sessionStorage.getItem("quiz_nusantara_player_team");
+  const savedPlayerName=sessionStorage.getItem("quiz_nusantara_player_name");
+  if(savedPlayerRoom&&savedPlayerTeam&&savedPlayerName){
+    role="player"; codeNow=savedPlayerRoom; playerRoom=savedPlayerRoom; playerTeamId=savedPlayerTeam; playerName=savedPlayerName;
+    socket.emit("reconnectPlayer",{code:savedPlayerRoom,teamId:savedPlayerTeam,name:savedPlayerName});
   }
 });
 
+socket.on("roomReady",x=>{
+  const btn=el("createSelectedRoomBtn"); if(btn){btn.disabled=false;btn.textContent="🚀 BUAT ROOM & SOAL";}
+  toast(`✅ ${x.count} soal siap — ${x.className} • ${x.subject} • ${x.difficulty}`);
+});
 socket.on("created",x=>{codeNow=x.code;adminLogged=true;sessionStorage.setItem("quiz_nusantara_admin_logged","1");sessionStorage.setItem("quiz_nusantara_admin_room",codeNow);if(x.adminToken){adminToken=x.adminToken;sessionStorage.setItem("quiz_nusantara_admin_token",adminToken)}hideAllMain();el("lobby").classList.remove("hidden")});
-socket.on("joined",x=>{role="player";codeNow=x.code;teamId=x.teamId;hideAllMain();el("lobby").classList.remove("hidden")});
+socket.on("joined",x=>{role="player";codeNow=x.code;teamId=x.teamId;playerRoom=x.code;playerTeamId=x.teamId;playerName=playerName||el("student")?.value||"Siswa";sessionStorage.setItem("quiz_nusantara_player_room",playerRoom);sessionStorage.setItem("quiz_nusantara_player_team",playerTeamId);sessionStorage.setItem("quiz_nusantara_player_name",playerName);hideAllMain();el("lobby").classList.remove("hidden")});
 socket.on("errorMsg",m=>{showMsg(role==="teacher"?"adminMsg":"studentMsg",m,true);toast(m,true)});
 socket.on("questionsSaved",x=>{toast(`Berhasil menyimpan ${x.count} soal.`);});
 socket.on("questionsGenerated",x=>{editorQuestions=(state?.questionList||[]).map(q=>({...q,opts:[...(q.opts||[])]}));renderQuestionEditor();toast(`✨ ${x.count} soal otomatis dibuat untuk ${x.className} • ${x.subject}.`);adminTab("questions",document.querySelector(".admin-nav .tab-btn:nth-child(2)"));});
@@ -403,7 +498,7 @@ function renderRoom(){
   el("adminLobbyDashboard").classList.toggle("hidden",true);
   el("adminShell").classList.toggle("hidden",role!=="teacher");
   el("adminSidebar").classList.toggle("hidden",role!=="teacher"||state.status!=="lobby");
-  el("studentLobbyArea").classList.toggle("hidden",role!=="player");
+  el("studentLobbyArea").classList.toggle("hidden",role!=="player"||state.status!=="lobby");
   el("studentLobbyWaiting").classList.toggle("hidden",role!=="player"||state.status!=="lobby");
   if(role==="teacher"&&state.status==="lobby"){
     const students=state.teams.reduce((n,t)=>n+t.members.length,0);

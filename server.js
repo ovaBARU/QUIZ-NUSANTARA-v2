@@ -16,7 +16,7 @@ app.get("/", (req, res) => {
   res.sendFile(path.join(process.cwd(), "public", "index.html"));
 });
 app.get("/health", (req, res) => {
-  res.json({ ok: true, app: "QUIZ NUSANTARA", version: "3.4.0" });
+  res.json({ ok: true, app: "QUIZ NUSANTARA", version: "3.6.0" });
 });
 
 app.use(express.json({ limit: "1mb" }));
@@ -233,17 +233,22 @@ function generatedQuestions(className, subject, count=10) {
   return shuffleArray(base).slice(0,count).map((q,i)=>({...q,id:i+1}));
 }
 
-async function generateOnlineQuestions(className, subject, count=10, difficulty="sedang") {
+async function generateOnlineQuestions(className, subject, count=30, difficulty="sedang") {
   if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY belum diatur di Railway.");
-  const safeCount = Math.min(30, Math.max(5, Number(count) || 10));
+  const safeCount = Math.min(100, Math.max(5, Number(count) || 30));
   const grade = String(className || "SD 1").trim();
   const lesson = String(subject || "Matematika").trim();
   const level = String(difficulty || "sedang").trim().toLowerCase();
-  const prompt = `Buat ${safeCount} soal kuis pilihan ganda berbahasa Indonesia untuk siswa kelas ${grade}, mata pelajaran ${lesson}, tingkat kesulitan ${level}.
+  const phase = grade.startsWith("SD") ? (Number(grade.match(/\d+/)?.[0] || 1) <= 2 ? "Fase A" : Number(grade.match(/\d+/)?.[0] || 1) <= 4 ? "Fase B" : "Fase C") : grade.startsWith("SMP") ? "Fase D" : "Fase E/F";
+  const prompt = `Buat ${safeCount} soal kuis pilihan ganda berbahasa Indonesia untuk ${grade} (${phase}), mata pelajaran ${lesson}, tingkat kesulitan ${level}.
 
-Gunakan web search untuk mencari referensi materi yang relevan dan mutakhir bila diperlukan. Prioritaskan sumber pendidikan Indonesia yang tepercaya (misalnya kemdikbud.go.id, kemdikdasmen.go.id, repositori pendidikan resmi, atau sumber akademik tepercaya). Jangan menyalin kalimat panjang dari sumber. Soal harus sesuai usia/jenjang, jelas, memiliki tepat 4 pilihan jawaban, hanya 1 jawaban benar, dan disertai penjelasan singkat.
+WAJIB selaras dengan Kurikulum Merdeka Indonesia dan pendekatan Pembelajaran Mendalam (Deep Learning), bukan sekadar soal hafalan. Prioritaskan Capaian Pembelajaran (CP) dan konteks pembelajaran yang relevan untuk fase tersebut. Gunakan pengalaman belajar memahami, mengaplikasi, dan merefleksi; prinsip mindful, meaningful, joyful; serta dorong penalaran, pemecahan masalah, literasi/numerasi, koneksi konsep, dan penerapan pada situasi nyata sesuai usia. Untuk tingkat mudah, utamakan pemahaman konsep dan penerapan sederhana; sedang, penerapan dan analisis; sulit, analisis/evaluasi/pemecahan masalah yang tetap sesuai perkembangan peserta didik.
 
-Kembalikan HANYA JSON sesuai schema. Field a adalah indeks jawaban benar: 0=A, 1=B, 2=C, 3=D. Field subject harus sama dengan mata pelajaran. Jangan membuat soal yang membutuhkan gambar atau data yang tidak diberikan.`;
+Gunakan web search untuk memeriksa referensi resmi terbaru. Prioritaskan sumber pemerintah/kurikulum Indonesia seperti kurikulum.kemdikbud.go.id, kemdikdasmen.go.id, dan dokumen CP resmi. Jangan menyalin kalimat panjang dari sumber. Jika ada ketidakpastian CP spesifik, jangan mengarang nomor/rumusan dokumen; buat soal berdasarkan kompetensi umum fase dan mata pelajaran yang konsisten dengan Kurikulum Merdeka.
+
+Setiap soal harus memiliki tepat 4 pilihan (A-D), hanya 1 jawaban benar, pengecoh masuk akal, bahasa sesuai usia, dan penjelasan singkat yang menjelaskan alasan jawaban benar. Variasikan konteks Indonesia dan kehidupan sehari-hari bila relevan. Hindari pertanyaan ambigu, trivia yang tidak terkait pembelajaran, dan soal yang membutuhkan gambar/data eksternal yang tidak diberikan.
+
+Kembalikan HANYA JSON sesuai schema. Field a adalah indeks jawaban benar: 0=A, 1=B, 2=C, 3=D. Field subject harus sama dengan mata pelajaran.`;
   const schema = {
     type: "object",
     properties: {
@@ -455,6 +460,8 @@ function publicRoom(room, socketId) {
     viewerRole: viewer?.role || null,
     className: room.className,
     subject: room.subject,
+    difficulty: room.difficulty || "sedang",
+    questionSource: room.questionSource || "local",
     teacherName: room.teacherName,
     status: room.status,
     qIndex: room.qIndex,
@@ -545,36 +552,51 @@ io.on("connection", socket => {
     socket.emit("created", { code:room.code, restored:true });
     emitRoom(room); emitAdmin(room);
   });
-  socket.on("createRoom", ({ className, subject, teacherName, quizId }) => {
-    if (!socket.data.admin) return socket.emit("errorMsg", "Admin wajib login terlebih dahulu.");
+  socket.on("createRoom", async ({ className, subject, teacherName, quizId, difficulty, source, count }, ack) => {
+    if (!socket.data.admin) { socket.emit("errorMsg", "Admin wajib login terlebih dahulu."); return ack?.({ok:false,message:"Admin wajib login terlebih dahulu."}); }
     let code;
     do { code = Math.random().toString(36).slice(2, 7).toUpperCase(); } while (rooms.has(code));
+    const finalClass = String(className || "SD 1").trim();
+    const finalSubject = String(subject || "GAME CAMPURAN").trim();
+    const finalDifficulty = String(difficulty || "sedang").trim().toLowerCase();
+    const finalCount = Math.min(100, Math.max(5, Number(count) || 30));
+    const mode = String(source || (OPENAI_API_KEY ? "online" : "local")).toLowerCase();
     const room = {
-      code,
-      className: className || "SD 1",
-      subject: subject || "GAME CAMPURAN",
-      teacherName: String(teacherName || "Admin").trim() || "Admin",
-      status: "lobby",
-      qIndex: 0,
-      quizId: String(quizId || "").trim(),
-      questions: (() => {
-        const saved = quizBank.find(q => q.id === String(quizId || "").trim());
-        return saved ? cleanQuizQuestions(saved.questions) : makeQuestions(subject, className);
-      })(),
-      teams: new Map(),
-      sockets: new Map(),
-      questionStartedAt: null,
-      adminToken: null
+      code, className: finalClass, subject: finalSubject, difficulty: finalDifficulty, questionSource: mode,
+      teacherName: String(teacherName || "Admin").trim() || "Admin", status: "lobby", qIndex: 0,
+      quizId: String(quizId || "").trim(), questions: [], teams: new Map(), sockets: new Map(),
+      questionStartedAt: null, adminToken: null
     };
     rooms.set(code, room);
     room.adminToken = socket.data.adminToken || issueAdminSession(room.teacherName);
-    socket.data.admin = true;
-    socket.data.adminToken = room.adminToken;
+    socket.data.admin = true; socket.data.adminToken = room.adminToken;
     room.sockets.set(socket.id, { role: "teacher", name: room.teacherName });
     socket.join(code);
-    socket.emit("created", { code, adminToken: room.adminToken });
-    emitRoom(room);
-    emitAdmin(room);
+    socket.emit("created", { code, adminToken: room.adminToken, preparing: true });
+    emitRoom(room); emitAdmin(room);
+    ack?.({ok:true, code, preparing:true});
+
+    try {
+      let questions = [];
+      const saved = quizBank.find(q => q.id === String(quizId || "").trim());
+      if (saved) questions = cleanQuizQuestions(saved.questions);
+      else if (mode === "online" && OPENAI_API_KEY && finalSubject !== "GAME CAMPURAN") {
+        socket.emit("generationStarted", { source: "online", count: finalCount, preparingRoom: true });
+        questions = await generateOnlineQuestions(finalClass, finalSubject, finalCount, finalDifficulty);
+      } else {
+        questions = generatedQuestions(finalClass, finalSubject, finalCount, finalDifficulty);
+      }
+      room.questions = questions;
+      room.status = "lobby";
+      room.qIndex = 0; room.questionStartedAt = null;
+      emitRoom(room); emitAdmin(room);
+      socket.emit("roomReady", { code, count: questions.length, className: finalClass, subject: finalSubject, difficulty: finalDifficulty, source: mode });
+    } catch (err) {
+      console.error("createRoom question generation error:", err);
+      room.questions = generatedQuestions(finalClass, finalSubject, Math.min(30, finalCount), finalDifficulty);
+      socket.emit("generationFailed", { message: `AI gagal membuat soal. Room tetap dibuat dengan soal lokal (${room.questions.length} soal).` });
+      emitRoom(room); emitAdmin(room);
+    }
   });
 
   socket.on("joinRoom", ({ code, name, teamName }) => {
@@ -596,6 +618,36 @@ io.on("connection", socket => {
     socket.emit("joined", { code: room.code, teamId: team.id });
     emitRoom(room);
     emitAdmin(room);
+  });
+
+  // Restore a student session after browser refresh/reconnect. The room itself stays
+  // in memory while the server is running; the student identity is recovered from
+  // sessionStorage on the client.
+  socket.on("reconnectPlayer", ({ code, teamId, name }) => {
+    const room = rooms.get(String(code || "").trim().toUpperCase());
+    if (!room) return socket.emit("errorMsg", "Room tidak ditemukan lagi. Silakan masuk ke room baru.");
+    const tid = String(teamId || "");
+    const team = room.teams.get(tid);
+    if (!team) return socket.emit("errorMsg", "Tim sebelumnya tidak ditemukan. Silakan bergabung kembali.");
+
+    // Remove any stale member entry for this student name and bind the new socket.
+    const studentName = String(name || "Siswa").trim() || "Siswa";
+    team.members = team.members.filter(m => String(m.name).toLowerCase() !== studentName.toLowerCase());
+    if (team.members.length >= 10) return socket.emit("errorMsg", "Tim ini sudah penuh (maksimal 10 siswa).");
+    team.members.push({ id: socket.id, name: studentName });
+    room.sockets.set(socket.id, { role:"player", teamId: team.id, name: studentName });
+    socket.join(room.code);
+    socket.emit("joined", { code: room.code, teamId: team.id, restored:true });
+    emitRoom(room);
+    emitAdmin(room);
+    if (room.status === "playing") {
+      socket.emit("questionStarted", {
+        qIndex: room.qIndex,
+        total: room.questions.length,
+        startedAt: room.questionStartedAt,
+        current: safeQuestion(room.questions[room.qIndex])
+      });
+    }
   });
 
   socket.on("startGame", ({ code }, cb) => {
@@ -657,8 +709,18 @@ io.on("connection", socket => {
 
     // Students only receive a generic acknowledgement. No correct answer/explanation is sent.
     socket.emit("answerSaved", { points });
-    emitRoom(room);
-    emitAdmin(room);
+
+    const lastQuestion = room.qIndex === room.questions.length - 1;
+    const allTeamsAnswered = room.teams.size > 0 && [...room.teams.values()].every(t => !!t.answers[room.qIndex]);
+    if (lastQuestion && allTeamsAnswered) {
+      room.status = "finished";
+      room.questionStartedAt = null;
+      emitRoom(room);
+      emitAdmin(room);
+    } else {
+      emitRoom(room);
+      emitAdmin(room);
+    }
   });
 
   // Kept for backward compatibility, but the game no longer exposes a LEWATI button.
@@ -671,6 +733,12 @@ io.on("connection", socket => {
     if (!team || team.answers[room.qIndex]) return;
     team.answers[room.qIndex] = { choice: null, correct: false, points: 0, skipped: true };
     socket.emit("answerSaved", { points: 0, skipped: true });
+    const lastQuestion = room.qIndex === room.questions.length - 1;
+    const allTeamsAnswered = room.teams.size > 0 && [...room.teams.values()].every(t => !!t.answers[room.qIndex]);
+    if (lastQuestion && allTeamsAnswered) {
+      room.status = "finished";
+      room.questionStartedAt = null;
+    }
     emitRoom(room);
     emitAdmin(room);
   });
@@ -839,6 +907,6 @@ const PORT = Number(process.env.PORT) || 3000;
   quizBank = await loadQuizBank();
   await ensureBuiltinQuizBank();
   server.listen(PORT, "0.0.0.0", () => {
-    console.log(`QUIZ NUSANTARA v3.4 running on 0.0.0.0:${PORT} | storage=${storageMode}`);
+    console.log(`QUIZ NUSANTARA v3.6 running on 0.0.0.0:${PORT} | storage=${storageMode}`);
   });
 })().catch(err => { console.error("Startup failed:", err); process.exit(1); });

@@ -1,4 +1,4 @@
-# QUIZ NUSANTARA v3.4
+# QUIZ NUSANTARA v3.6
 
 Perbaikan utama: kontrol **MULAI PERMAINAN** admin dibuat lebih kuat setelah siswa bergabung. Server sekarang memberikan status/error yang jelas, memulihkan peran admin pada koneksi admin yang sah setelah refresh/reconnect, memvalidasi room, soal, dan peserta sebelum permainan dimulai, serta mengirim acknowledgement saat permainan berhasil dimulai.
 
@@ -129,8 +129,26 @@ npm start
 Default port: `3000`.
 
 
+## v3.6 — Refresh, finish, student lobby, compact UI
+
+- Memulihkan room Admin dan Siswa setelah refresh browser selama server masih hidup.
+- Soal terakhir otomatis mengakhiri permainan setelah semua tim menjawab.
+- Rekap lengkap jawaban tetap khusus Admin.
+- Siswa mendapat layar terima kasih khusus setelah permainan selesai.
+- Lobby siswa memiliki tampilan menunggu dan gambar siswi belajar.
+- Home dan Live Control Admin dibuat lebih ringkas agar minim scroll.
+
 ## v3.4 — Fix multiplayer state
 - Sesi Admin dipisahkan per-tab menggunakan `sessionStorage`, sehingga browser/tab siswa tidak mewarisi sesi Admin.
 - `roomState` mengirim `viewerRole` agar server menjadi sumber kebenaran role.
 - Event `questionStarted` membawa soal aman saat ini sehingga soal tetap tampil walaupun event diterima tidak berurutan.
 - Saat permainan dimulai/berpindah soal, tampilan Admin dan Siswa dipaksa masuk ke layar game.
+
+
+## v3.6 — Wizard Jenjang + Kurikulum Merdeka & Pembelajaran Mendalam
+- Setelah login Google, admin memilih jenjang SD/SMP/SMA terlebih dahulu.
+- Langkah berikutnya memilih kelas, mata pelajaran, tingkat kesulitan, dan jumlah soal.
+- Mode Internet + AI menggunakan web search untuk memeriksa referensi pendidikan resmi sebelum menyusun soal.
+- Prompt generator diarahkan pada Kurikulum Merdeka dan pendekatan Pembelajaran Mendalam: mindful, meaningful, joyful serta memahami–mengaplikasi–merefleksi.
+- Pembelajaran Mendalam diperlakukan sebagai pendekatan pembelajaran, bukan nama kurikulum baru.
+- Jika OPENAI_API_KEY tidak tersedia, aplikasi tetap membuat room dengan generator lokal sebagai fallback.
