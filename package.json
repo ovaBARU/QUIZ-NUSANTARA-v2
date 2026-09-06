@@ -1,8 +1,8 @@
 {
   "name": "quiz-nusantara",
-  "version": "3.22.0",
+  "version": "3.23.0",
   "private": true,
-  "description": "QUIZ NUSANTARA - multiplayer quiz dengan perbaikan tampilan hasil semua tim",
+  "description": "QUIZ NUSANTARA - multiplayer quiz dengan rekapan semua tim dan peserta tanpa tabel horizontal",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"

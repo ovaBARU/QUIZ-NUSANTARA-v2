@@ -510,6 +510,7 @@ function publicRoom(room, socketId) {
     status: room.status,
     qIndex: room.qIndex,
     total: room.questions.length,
+    participantCount: room.teams.size,
     questionStartedAt: room.questionStartedAt,
     teams: [...room.teams.values()].map(t => ({
       id: t.id,
@@ -529,6 +530,7 @@ function adminResults(room) {
   return {
     qIndex: room.qIndex,
     total: room.questions.length,
+    participantCount: room.teams.size,
     questionStartedAt: room.questionStartedAt,
     currentQuestion: safeQuestion(current),
     rows: [...room.teams.values()].map(t => {

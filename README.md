@@ -1,4 +1,4 @@
-### v3.22 — Hasil live & papan skor dalam tombol
+### v3.23 — Hasil live & papan skor dalam tombol
 
 - Hasil jawaban semua tim/siswa pada halaman admin sekarang berada dalam tombol accordion.
 - Papan skor semua tim/siswa juga berada dalam tombol accordion.

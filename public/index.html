@@ -171,8 +171,9 @@ section{max-width:100%;min-width:0}
 .recap-menu{display:grid;grid-template-columns:1fr;gap:8px;margin-top:16px}.recap-menu-btn{width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 16px;border-radius:14px;border:1px solid #ffffff14;background:#ffffff08;color:#eef3ff;font-size:15px;font-weight:800;text-align:left;cursor:pointer;transition:.2s}.recap-menu-btn:hover{background:#ffffff10;transform:translateY(-1px)}.recap-menu-btn.active{border-color:#5edcff66;background:#12304a}.recap-menu-btn b{font-size:10px;letter-spacing:.8px;color:#8ff0ff}.recap-panel{display:none}.recap-panel-open{display:block}.recap-modal-card .recap-section{margin-top:10px;padding:14px;border:1px solid #ffffff12;border-radius:18px;background:#ffffff06}
 .recap-modal-card .recap-section h4{margin:0 0 8px;font-size:18px}
 .recap-modal-card .scroll{max-height:48vh;overflow:auto}
-.recap-modal-card .result-table{min-width:720px}
-@media(max-width:720px){.admin-panel #adminCurrentResults .scroll{max-height:280px}.recap-modal-card{width:96vw;padding:16px}.recap-modal-card .grid{grid-template-columns:1fr}.recap-modal-card .scroll{max-height:42vh}.recap-open-btn{font-size:16px}}
+.recap-modal-card .result-table{width:100%;min-width:0;table-layout:fixed}
+.recap-question{padding:13px 0;border-bottom:1px solid #ffffff12}.recap-question:last-child{border-bottom:0}.recap-question-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:9px}.recap-question-head strong{font-size:15px;line-height:1.35}.recap-question-head span{font-size:11px;color:#9fb0d5;white-space:nowrap}.recap-team-row{display:grid;grid-template-columns:minmax(150px,1.1fr) minmax(130px,1fr) minmax(110px,.8fr) minmax(90px,.7fr);gap:8px;padding:9px 10px;border:1px solid #ffffff0d;border-radius:10px;background:#ffffff04;margin-top:6px;align-items:center}.recap-team-row .team-name{font-weight:850}.recap-team-row .muted{color:#9fb0d5;font-size:12px}.recap-team-row .answer{overflow-wrap:anywhere}.recap-team-row .points{text-align:right;font-weight:850}.recap-team-head{display:grid;grid-template-columns:minmax(150px,1.1fr) minmax(130px,1fr) minmax(110px,.8fr) minmax(90px,.7fr);gap:8px;padding:0 10px 5px;color:#8495ba;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px}.recap-empty{padding:18px;text-align:center;color:#9fb0d5}
+@media(max-width:720px){.admin-panel #adminCurrentResults .scroll{max-height:280px}.recap-modal-card{width:96vw;padding:16px}.recap-modal-card .grid{grid-template-columns:1fr}.recap-modal-card .scroll{max-height:42vh}.recap-open-btn{font-size:16px}.recap-team-head{display:none}.recap-team-row{grid-template-columns:1fr 1fr}.recap-team-row .points{text-align:left}.recap-question-head{display:block}.recap-question-head span{display:block;margin-top:3px}}
 </style>
 </head>
 <body>
@@ -1000,11 +1001,25 @@ function renderFinish(){
 }
 
 function renderAllResults(all){
-  if(!all.length){el("allResults").innerHTML="Belum ada data jawaban.";return}
-  let out="<table class='result-table'><tr><th>No</th><th>Soal</th><th>Kunci</th>";
-  const teams=state.teams||[];teams.forEach(t=>out+=`<th>${escapeHtml(t.name)}</th>`);out+="</tr>";
-  all.forEach(q=>{out+=`<tr><td>${q.number}</td><td>${escapeHtml(q.question)}</td><td>${escapeHtml(q.correctAnswer)}</td>`;q.teams.forEach(t=>out+=`<td><b>${escapeHtml(t.answer)}</b><br><small>👤 ${escapeHtml(t.submittedBy||"-")}</small><br><span class="${t.result==='BENAR'?'good':t.result==='BELUM MENJAWAB'?'pending':'bad'}">${t.result}</span> • ${t.points} poin</td>`);out+="</tr>"});
-  el("allResults").innerHTML=out+"</table>";
+  if(!Array.isArray(all)||!all.length){el("allResults").innerHTML="<div class='recap-empty'>Belum ada data jawaban.</div>";return}
+  const individual=state?.quizMode==="individual";
+  let out="";
+  all.forEach(q=>{
+    const participants=Array.isArray(q.teams)?q.teams:[];
+    out+=`<div class="recap-question">
+      <div class="recap-question-head"><strong>Soal ${q.number} — ${escapeHtml(q.question)}</strong><span>Kunci: ${escapeHtml(q.correctAnswer)}</span></div>
+      <div class="recap-team-head"><span>${individual?"Siswa":"Tim"}</span><span>Jawaban</span><span>Dijawab oleh</span><span>Hasil / Poin</span></div>`;
+    if(!participants.length){
+      out+=`<div class="recap-empty">Belum ada ${individual?"siswa":"tim"} pada rekapan soal ini.</div>`;
+    } else {
+      participants.forEach(t=>{
+        const cls=t.result==='BENAR'?'good':t.result==='BELUM MENJAWAB'?'pending':'bad';
+        out+=`<div class="recap-team-row"><div class="team-name">${escapeHtml(t.teamName)}</div><div class="answer">${escapeHtml(t.answer)}</div><div class="muted">👤 ${escapeHtml(t.submittedBy||"-")}</div><div class="points"><span class="${cls}">${escapeHtml(t.result)}</span><br><small>${Number(t.points)||0} poin</small></div></div>`;
+      });
+    }
+    out+=`</div>`;
+  });
+  el("allResults").innerHTML=out;
 }
 function renderReview(rows){
   if(role!=="teacher")return;
