@@ -26,7 +26,7 @@ h1{font-size:clamp(36px,7vw,76px);line-height:.95;margin:14px 0 10px;text-align:
 .login-choice .tag{font-size:14px}.login-choice .creator{margin-top:5px}
 .login-choice .home-hero{margin:4px 0 0}.login-choice .home-hero img{width:min(430px,55%);max-height:180px}
 .login-choice .choice-grid{gap:12px;margin-top:10px}.login-choice .choice{min-height:120px;padding:17px 20px}.login-choice .choice .icon{font-size:38px}.login-choice .choice h2{font-size:21px;margin:7px 0 4px}.login-choice .choice p{font-size:13px}.login-choice .mini{margin-top:10px}
-#game>.card{padding:16px}.question{font-size:clamp(23px,3.2vw,34px);margin:12px 0 16px}.opts{gap:10px}.opt{min-height:60px;padding:11px 14px;font-size:16px}.admin-panel{margin-top:10px;padding-top:10px}.adminDashboard{margin-top:8px}.live-admin-grid{gap:10px}.live-question-card,.live-side{padding:12px}.live-question-text{font-size:20px!important;line-height:1.15!important}.admin-game-actions{margin-top:8px!important}.admin-game-actions button{padding:11px 14px}.admin-panel #adminCurrentResults{margin-top:8px!important}.admin-panel #adminCurrentResults .scroll{max-height:125px}.admin-panel>div:last-child{margin-top:8px!important}.admin-panel .leader{max-height:105px;overflow:auto;margin:6px 0;padding-left:20px}.admin-panel .leader li{padding:7px 10px;margin:4px 0}
+#game>.card{padding:16px}.question{font-size:clamp(23px,3.2vw,34px);margin:12px 0 16px}.opts{gap:10px}.opt{min-height:60px;padding:11px 14px;font-size:16px}.admin-panel{margin-top:10px;padding-top:10px}.adminDashboard{margin-top:8px}.live-admin-grid{gap:10px}.live-question-card,.live-side{padding:12px}.live-question-text{font-size:20px!important;line-height:1.15!important}.admin-game-actions{margin-top:8px!important}.admin-game-actions button{padding:11px 14px}.admin-panel #adminCurrentResults{margin-top:8px!important}.admin-panel #adminCurrentResults .scroll{max-height:320px;overflow:auto}.admin-panel>div:last-child{margin-top:8px!important}.admin-panel .leader{max-height:105px;overflow:auto;margin:6px 0;padding-left:20px}.admin-panel .leader li{padding:7px 10px;margin:4px 0}
 .student-lobby-card{max-width:860px;margin:12px auto 0;text-align:center}.student-lobby-hero{display:flex;justify-content:center;margin:2px 0 0}.student-lobby-hero img{width:min(300px,70%);max-height:220px;object-fit:contain;filter:drop-shadow(0 16px 24px rgba(0,0,0,.35));animation:float 6s ease-in-out infinite}.student-wait-title{font-size:clamp(24px,4vw,38px);font-weight:1000;margin:2px 0 5px}.student-wait-sub{color:#b8c8e9;margin:0 0 10px}.student-lobby-card .teams{text-align:left}.student-lobby-card .waiting{margin-top:10px}
 .student-thanks{padding:26px 18px}.student-thanks .finish-title{font-size:clamp(34px,7vw,58px);margin:4px}.student-thanks .tag{font-size:17px}.thanks-icon{font-size:64px;animation:pulse .8s ease-in-out infinite alternate}
 @media(max-width:720px){.login-choice{margin:1vh auto 0;padding:14px}.login-choice .home-hero img{width:min(360px,80%);max-height:150px}.login-choice .choice{min-height:105px;padding:14px}.login-choice .choice .icon{font-size:32px}.login-choice .choice h2{font-size:18px}.student-lobby-hero img{width:min(250px,80%);max-height:180px}}
@@ -69,6 +69,12 @@ h1{font-size:clamp(36px,7vw,76px);line-height:.95;margin:14px 0 10px;text-align:
 @media(max-width:650px){.student-lobby-card{padding:18px 14px}.student-lobby-card .student-lobby-hero img{width:min(270px,75vw);max-height:190px}.student-lobby-card .student-wait-title{font-size:30px}.student-lobby-card .student-wait-sub{font-size:13px}}
 </style>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
+
+<style id="v3-21-team-results-fix">
+/* v3.21: tampilkan seluruh tim pada hasil soal aktif. Sebelumnya area 125px memotong tim ke-3. */
+#adminCurrentResults .scroll{max-height:320px!important;overflow:auto}
+@media(max-width:720px){#adminCurrentResults .scroll{max-height:280px!important}}
+</style>
 
 <style id="v3-20-compact">
 /* v3.20 compact: page boleh panjang, tetapi navigasi vertikal memakai tombol ↑ ↓. */
@@ -154,7 +160,7 @@ section{max-width:100%;min-width:0}
 .recap-modal-card .recap-section h4{margin:0 0 8px;font-size:18px}
 .recap-modal-card .scroll{max-height:48vh;overflow:auto}
 .recap-modal-card .result-table{min-width:720px}
-@media(max-width:720px){.recap-modal-card{width:96vw;padding:16px}.recap-modal-card .grid{grid-template-columns:1fr}.recap-modal-card .scroll{max-height:42vh}.recap-open-btn{font-size:16px}}
+@media(max-width:720px){.admin-panel #adminCurrentResults .scroll{max-height:280px}.recap-modal-card{width:96vw;padding:16px}.recap-modal-card .grid{grid-template-columns:1fr}.recap-modal-card .scroll{max-height:42vh}.recap-open-btn{font-size:16px}}
 </style>
 </head>
 <body>
