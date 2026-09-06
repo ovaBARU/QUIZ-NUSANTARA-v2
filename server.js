@@ -16,7 +16,7 @@ app.get("/", (req, res) => {
   res.sendFile(path.join(process.cwd(), "public", "index.html"));
 });
 app.get("/health", (req, res) => {
-  res.json({ ok: true, app: "QUIZ NUSANTARA", version: "3.6.0" });
+  res.json({ ok: true, app: "QUIZ NUSANTARA", version: "3.8.0" });
 });
 
 app.use(express.json({ limit: "1mb" }));
@@ -497,6 +497,7 @@ function adminResults(room) {
         answered,
         choice,
         choiceIndex: ans?.choice ?? null,
+        submittedBy: ans?.submittedBy?.name || "-",
         correctAnswer: current.opts[current.a],
         result: !answered ? "BELUM MENJAWAB" : (ans.correct ? "BENAR" : (ans.skipped ? "DILEWATI" : "SALAH")),
         points: ans?.points || 0,
@@ -513,6 +514,7 @@ function adminResults(room) {
         return {
           teamId: t.id,
           teamName: t.name,
+          submittedBy: ans?.submittedBy?.name || "-",
           answer: ans && ans.choice !== null && ans.choice !== undefined ? q.opts[ans.choice] : (ans?.skipped ? "DILEWATI" : "BELUM MENJAWAB"),
           result: !ans ? "BELUM MENJAWAB" : (ans.correct ? "BENAR" : (ans.skipped ? "DILEWATI" : "SALAH")),
           points: ans?.points || 0
@@ -545,7 +547,10 @@ io.on("connection", socket => {
   socket.on("reconnectAdmin", ({ code, token }) => {
     const session = validAdminToken(token);
     const room = rooms.get(String(code || "").trim().toUpperCase());
-    if (!session || !room || room.adminToken !== String(token)) return socket.emit("errorMsg", "Room admin tidak dapat dipulihkan. Silakan buat room baru.");
+    if (!session || !room || (room.adminToken !== String(token) && String(room.adminEmail || "").toLowerCase() !== String(session.email || "").toLowerCase())) return socket.emit("errorMsg", "Room admin tidak dapat dipulihkan. Silakan login dengan akun Google admin yang sama.");
+    // Jika admin login ulang setelah LOGOUT, sesi token baru mengambil alih kontrol room tanpa menghapus room.
+    room.adminToken = String(token);
+    room.adminEmail = session.email || room.adminEmail || "";
     socket.data.admin = true; socket.data.adminToken = String(token); socket.data.adminName = session.name; socket.data.adminEmail = session.email || "";
     room.sockets.set(socket.id, { role:"teacher", name:room.teacherName, email:socket.data.adminEmail || "" });
     socket.join(room.code);
@@ -565,7 +570,7 @@ io.on("connection", socket => {
       code, className: finalClass, subject: finalSubject, difficulty: finalDifficulty, questionSource: mode,
       teacherName: String(teacherName || "Admin").trim() || "Admin", status: "lobby", qIndex: 0,
       quizId: String(quizId || "").trim(), questions: [], teams: new Map(), sockets: new Map(),
-      questionStartedAt: null, adminToken: null
+      questionStartedAt: null, adminToken: null, adminEmail: socket.data.adminEmail || ""
     };
     rooms.set(code, room);
     room.adminToken = socket.data.adminToken || issueAdminSession(room.teacherName);
@@ -650,6 +655,56 @@ io.on("connection", socket => {
     }
   });
 
+  // LOGOUT siswa: hapus siswa dari tim/room tanpa mematikan room untuk peserta lain.
+  socket.on("playerLogout", ({ code }, cb) => {
+    const room = rooms.get(String(code || "").trim().toUpperCase());
+    if (!room) { cb?.({ok:true}); return; }
+    const p = room.sockets.get(socket.id);
+    if (!p || p.role !== "player") { cb?.({ok:true}); return; }
+    const team = room.teams.get(p.teamId);
+    if (team) {
+      team.members = team.members.filter(m => m.id !== socket.id);
+      if (team.members.length === 0) room.teams.delete(team.id);
+    }
+    room.sockets.delete(socket.id);
+    socket.leave(room.code);
+    emitRoom(room);
+    emitAdmin(room);
+    cb?.({ok:true, code:room.code});
+  });
+
+  // LOGOUT admin: sesi admin keluar dari halaman/koneksi, tetapi room dan peserta tetap hidup.
+  socket.on("adminLogout", ({ code }, cb) => {
+    const room = rooms.get(String(code || "").trim().toUpperCase());
+    if (!room) { cb?.({ok:true}); return; }
+    const p = room.sockets.get(socket.id);
+    const isAdmin = !!socket.data.admin && String(socket.data.adminToken || "") === String(room.adminToken || "") && p?.role === "teacher";
+    if (!isAdmin) { cb?.({ok:false, message:"Sesi admin tidak valid."}); return; }
+    room.sockets.delete(socket.id);
+    socket.leave(room.code);
+    socket.data.admin = false;
+    emitRoom(room);
+    emitAdmin(room);
+    cb?.({ok:true, code:room.code, roomKept:true});
+  });
+
+  // TUTUP ROOM: semua siswa/admin yang masih terhubung dipaksa keluar, lalu room dihapus.
+  socket.on("closeRoom", ({ code }, cb) => {
+    const room = rooms.get(String(code || "").trim().toUpperCase());
+    if (!room) { cb?.({ok:false, message:"Room tidak ditemukan."}); return; }
+    const p = room.sockets.get(socket.id);
+    const isAdmin = !!socket.data.admin && String(socket.data.adminToken || "") === String(room.adminToken || "") && p?.role === "teacher";
+    if (!isAdmin) { cb?.({ok:false, message:"Hanya admin pemilik room yang dapat menutup room."}); return; }
+
+    for (const socketId of room.sockets.keys()) {
+      io.to(socketId).emit("roomClosed", { code: room.code, message:"Room telah ditutup oleh admin. Silakan login kembali untuk mengikuti kuis lain." });
+      const target = io.sockets.sockets.get(socketId);
+      if (target) target.leave(room.code);
+    }
+    rooms.delete(room.code);
+    cb?.({ok:true, code:room.code});
+  });
+
   socket.on("startGame", ({ code }, cb) => {
     const room = rooms.get(String(code || "").trim().toUpperCase());
     if (!room) { cb?.({ ok:false, message:"Room tidak ditemukan. Silakan buat/pulihkan room admin." }); return; }
@@ -705,7 +760,7 @@ io.on("connection", socket => {
     const correct = choice === q.a;
     const points = correct ? 100 : 0;
     team.score += points;
-    team.answers[room.qIndex] = { choice, correct, points };
+    team.answers[room.qIndex] = { choice, correct, points, submittedBy: { id: socket.id, name: p.name || "Siswa" } };
 
     // Students only receive a generic acknowledgement. No correct answer/explanation is sent.
     socket.emit("answerSaved", { points });
@@ -731,7 +786,7 @@ io.on("connection", socket => {
     if (!p || p.role !== "player") return;
     const team = room.teams.get(p.teamId);
     if (!team || team.answers[room.qIndex]) return;
-    team.answers[room.qIndex] = { choice: null, correct: false, points: 0, skipped: true };
+    team.answers[room.qIndex] = { choice: null, correct: false, points: 0, skipped: true, submittedBy: { id: socket.id, name: p.name || "Siswa" } };
     socket.emit("answerSaved", { points: 0, skipped: true });
     const lastQuestion = room.qIndex === room.questions.length - 1;
     const allTeamsAnswered = room.teams.size > 0 && [...room.teams.values()].every(t => !!t.answers[room.qIndex]);
@@ -856,6 +911,7 @@ io.on("connection", socket => {
       subject: q.subject,
       question: q.q,
       teamAnswer: t.answers[i]?.choice === null || t.answers[i]?.choice === undefined ? (t.answers[i]?.skipped ? "DILEWATI" : "BELUM MENJAWAB") : q.opts[t.answers[i].choice],
+      submittedBy: t.answers[i]?.submittedBy?.name || "-",
       correctAnswer: q.opts[q.a],
       result: t.answers[i]?.correct ? "BENAR" : (t.answers[i]?.skipped ? "DILEWATI" : (t.answers[i] ? "SALAH" : "BELUM MENJAWAB")),
       score: t.answers[i]?.points || 0

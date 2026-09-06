@@ -41,6 +41,31 @@ h1{font-size:clamp(36px,7vw,76px);line-height:.95;margin:14px 0 10px;text-align:
 
 /* v3.6 admin curriculum wizard */
 .quiz-setup{margin-top:18px;padding:18px;border:1px solid #ffffff18;border-radius:22px;background:linear-gradient(145deg,#ffffff09,#ffffff03);box-shadow:0 18px 45px #0003}.setup-progress{display:flex;align-items:center;max-width:260px;margin:0 auto 18px}.setup-progress span{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:#ffffff0c;border:1px solid #ffffff18;color:#91a2c9;font-weight:900}.setup-progress span.active{background:linear-gradient(135deg,#7c6cff,#00c8ff);color:#fff;border-color:transparent}.setup-progress i{height:2px;flex:1;background:#ffffff16}.setup-kicker{font-size:11px;font-weight:900;letter-spacing:1.5px;color:#8ca0cc;margin-bottom:4px}.quiz-setup h3{margin:0 0 5px;font-size:24px}.level-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:16px}.level-card{width:auto;min-height:145px;padding:18px;border:1px solid #ffffff16;border-radius:20px;background:linear-gradient(145deg,#17234c,#0d1735);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;transition:.2s}.level-card:hover{transform:translateY(-3px);border-color:#7c6cff77;box-shadow:0 14px 30px #0004}.level-card span{font-size:38px}.level-card strong{font-size:25px}.level-card small{color:#91a2c9}.setup-back{width:auto!important;padding:7px 11px!important;margin-bottom:12px!important}.setup-grid{margin-top:14px}.deep-learning-note{display:flex;gap:10px;align-items:flex-start;margin:14px 0;padding:12px 14px;border-radius:15px;background:#00c8ff0b;border:1px solid #00c8ff22}.deep-learning-note strong{white-space:nowrap}.deep-learning-note span{color:#aab8d8;font-size:12px;line-height:1.45}.source-toggle{display:flex;align-items:flex-start;gap:9px;padding:12px 14px;margin:12px 0;border:1px solid #ffffff12;border-radius:15px;background:#ffffff06;cursor:pointer}.source-toggle input{width:auto;margin-top:3px}.source-toggle strong{display:block}.source-toggle small{display:block;color:#91a2c9;margin-top:3px}@media(max-width:720px){.level-grid{grid-template-columns:1fr}.level-card{min-height:105px}.deep-learning-note{flex-direction:column}.quiz-setup{padding:14px}}
+
+/* v3.8 logout/close-room + Tut Wuri identity */
+.quiz-logo{width:58px;height:58px;object-fit:contain;filter:drop-shadow(0 10px 22px #0006)}
+.quiz-logo.small{width:42px;height:42px}
+.brand-logo-wrap{display:flex;align-items:center;gap:10px}
+.brand-logo-wrap .logo-word{font-weight:1000;letter-spacing:.4px}
+.brand-logo-wrap .logo-sub{display:block;color:#8fa1cb;font-size:11px;margin-top:2px}
+.room-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.room-actions button{width:auto;min-width:125px}
+.logout-btn{background:linear-gradient(135deg,#ffb347,#ff6b6b)!important}
+.close-room-btn{background:linear-gradient(135deg,#ff3d71,#b3135a)!important}
+.student-exit-row{display:flex;justify-content:center;gap:9px;flex-wrap:wrap;margin-top:14px}
+.student-exit-row button{width:auto;min-width:150px}
+@media(max-width:650px){.room-actions{flex-direction:column}.room-actions button,.student-exit-row button{width:100%}.quiz-logo{width:50px;height:50px}}
+
+/* v3.7 student isolation + complete admin recap */
+.student-lobby-card{width:min(900px,100%);margin:0 auto;padding:26px 24px 22px;background:linear-gradient(145deg,#111b43e8,#0a1230e8);border-color:#7ce8ff22;box-shadow:0 28px 80px #0008}
+.student-lobby-card .student-wait-title{font-size:clamp(30px,5vw,48px);margin-top:0}
+.student-lobby-card .student-wait-sub{font-size:15px;line-height:1.5;max-width:700px;margin:0 auto 12px}
+.student-lobby-card .student-lobby-hero img{width:min(330px,68vw);max-height:235px}
+.student-lobby-card .teams{margin-top:8px}
+#adminFinish .admin-panel{overflow:hidden}
+#adminFinish .result-table{min-width:760px}
+#adminFinish .result-table small{color:#9fb0d5}
+@media(max-width:650px){.student-lobby-card{padding:18px 14px}.student-lobby-card .student-lobby-hero img{width:min(270px,75vw);max-height:190px}.student-lobby-card .student-wait-title{font-size:30px}.student-lobby-card .student-wait-sub{font-size:13px}}
 </style>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
@@ -49,7 +74,7 @@ h1{font-size:clamp(36px,7vw,76px);line-height:.95;margin:14px 0 10px;text-align:
 <div class="wrap">
 
 <section id="home" class="card login-choice">
-  <div class="brand"><div class="brand-badge">🎯</div></div>
+  <div class="brand"><img class="quiz-logo" src="/tutwuri-quiz-logo.svg" alt="Tut Wuri Handayani — QUIZ NUSANTARA"></div>
   <h1>QUIZ NUSANTARA</h1>
   <div class="tag">Game kuis multiplayer untuk pembelajaran • Admin login dengan Google • Siswa cukup pakai kode room</div>
   <div class="creator">Dibuat oleh Odi Funan</div>
@@ -112,14 +137,14 @@ h1{font-size:clamp(36px,7vw,76px);line-height:.95;margin:14px 0 10px;text-align:
 <section id="lobby" class="hidden">
   <div class="admin-shell" id="adminShell">
     <aside class="admin-sidebar" id="adminSidebar">
-      <div class="admin-brand"><div class="admin-brand-icon">🎯</div><div><strong>QUIZ NUSANTARA</strong><span>Admin Control Center</span></div></div>
+      <div class="admin-brand"><img class="quiz-logo small" src="/tutwuri-quiz-logo.svg" alt="Tut Wuri Handayani"><div><strong>QUIZ NUSANTARA</strong><span>Admin Control Center</span></div></div>
       <div class="admin-nav">
         <button class="tab-btn active" onclick="adminTab('overview',this)">📊 <span>Dashboard</span></button>
         <button class="tab-btn" onclick="adminTab('questions',this)">📝 <span>Bank Soal</span></button><button class="tab-btn" onclick="adminTab('quizbank',this)">🗂️ <span>Bank Kuis</span></button>
         <button class="tab-btn" onclick="adminTab('teams',this)">👥 <span>Peserta</span></button>
         <button class="tab-btn" onclick="adminTab('settings',this)">⚙️ <span>Pengaturan</span></button>
       </div>
-      <div class="admin-side-room"><div class="label">ROOM AKTIF</div><div class="code" id="sideRoomCode">-----</div><div class="subtle">Bagikan kode ini ke siswa</div><button class="alt" style="margin-top:10px" onclick="adminLogout()">↪ KELUAR ADMIN</button></div>
+      <div class="admin-side-room"><div class="label">ROOM AKTIF</div><div class="code" id="sideRoomCode">-----</div><div class="subtle">Bagikan kode ini ke siswa</div><div class="room-actions"><button class="alt logout-btn" onclick="adminLogout()">↪ LOGOUT</button><button class="alt close-room-btn" onclick="closeRoom()">⛔ TUTUP ROOM</button></div></div>
     </aside>
 
     <main class="admin-main">
@@ -137,7 +162,7 @@ h1{font-size:clamp(36px,7vw,76px);line-height:.95;margin:14px 0 10px;text-align:
 
       <div id="tab-overview" class="tab-panel">
         <div class="dashboard-card quick-card">
-          <div><div class="subtle">KODE ROOM</div><div id="dashRoomCode" class="room-code-big">-----</div><p class="subtle">Siswa memasukkan kode ini untuk bergabung ke permainan.</p><div class="action-row"><button onclick="copyRoomCode()">📋 SALIN KODE</button><button onclick="generateQuestions()">✨ GENERATE SOAL OTOMATIS</button><button id="startGameBtn" onclick="startGame()">▶ MULAI PERMAINAN</button></div></div>
+          <div><div class="subtle">KODE ROOM</div><div id="dashRoomCode" class="room-code-big">-----</div><p class="subtle">Siswa memasukkan kode ini untuk bergabung ke permainan.</p><div class="action-row"><button onclick="copyRoomCode()">📋 SALIN KODE</button><button onclick="generateQuestions()">✨ GENERATE SOAL OTOMATIS</button><button id="startGameBtn" onclick="startGame()">▶ MULAI PERMAINAN</button><button class="logout-btn" onclick="adminLogout()">↪ LOGOUT</button><button class="close-room-btn" onclick="closeRoom()">⛔ TUTUP ROOM</button></div></div>
           <div><h3>📚 Informasi Sesi</h3><div class="status-list"><div class="status-item"><span>Kelas</span><b id="dashClass">-</b></div><div class="status-item"><span>Mata pelajaran</span><b id="dashSubject">-</b></div><div class="status-item"><span>Pengajar</span><b id="dashTeacher">-</b></div></div></div>
         </div>
         <div class="dashboard-card"><h3>🚀 Kesiapan Kelas</h3><p class="subtle">Pastikan peserta sudah masuk sebelum permainan dimulai.</p><div class="progress-track"><div id="teamProgress" class="progress-bar"></div></div><div class="subtle" style="margin-top:8px" id="readinessText">Belum ada peserta.</div></div>
@@ -174,13 +199,13 @@ h1{font-size:clamp(36px,7vw,76px);line-height:.95;margin:14px 0 10px;text-align:
     <p class="student-wait-sub">QUIZ akan segera dimulai. Tetap di halaman ini dan tunggu guru memulai permainan.</p>
     <div id="studentLobbyWaiting" class="waiting">⏳ Menunggu admin memulai permainan…</div>
     <h3 style="margin:14px 0 8px">👥 Tim Peserta</h3><div id="teams" class="teams"></div>
-    <div id="lobbyMsg" class="notice"></div>
+    <div id="lobbyMsg" class="notice"></div><div class="student-exit-row"><button class="alt logout-btn" onclick="studentLogout()">↪ LOGOUT</button></div>
   </div>
 </section>
 
 <section id="game" class="hidden">
   <div class="card">
-    <div class="topbar"><div><div id="qmeta" class="small"></div><div class="subtle" id="liveModeText">Mode permainan aktif</div></div><div class="timer-wrap"><div class="timer-label">WAKTU MENGERJAKAN</div><div id="qTimer" class="timer">00:00</div></div></div>
+    <div class="topbar"><div><div id="qmeta" class="small"></div><div class="subtle" id="liveModeText">Mode permainan aktif</div></div><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end"><div class="timer-wrap"><div class="timer-label">WAKTU MENGERJAKAN</div><div id="qTimer" class="timer">00:00</div></div><button id="studentGameLogout" class="alt logout-btn" style="width:auto" onclick="studentLogout()">↪ LOGOUT</button></div></div>
     <div class="progress-track"><div id="questionProgress" class="progress-bar"></div></div>
     <div id="q" class="question"></div>
     <div id="opts" class="opts"></div>
@@ -206,12 +231,13 @@ h1{font-size:clamp(36px,7vw,76px);line-height:.95;margin:14px 0 10px;text-align:
     <p class="tag">Kamu sudah menyelesaikan seluruh soal. Hebat! 🌟</p>
     <p class="subtle">Silakan tunggu arahan guru untuk melihat hasil permainan.</p>
     <div class="credit">QUIZ NUSANTARA • Dibuat oleh Odi Funan</div>
-    <br><button class="alt" onclick="studentExit()">KEMBALI KE HALAMAN AWAL</button>
+    <div class="student-exit-row"><button class="alt logout-btn" onclick="studentLogout()">↪ LOGOUT</button></div>
   </div>
   <div id="adminFinish" class="card hidden">
     <div class="finish-title">🏆 HASIL AKHIR</div>
-    <p class="tag">Admin dapat melihat hasil jawaban dari semua tim.</p>
+    <p class="tag">Admin dapat melihat seluruh soal, kunci, jawaban tiap kelompok, dan siswa yang mengirim jawaban.</p>
     <div id="final"></div>
+    <div id="studentAnswerSummary"></div>
     <div class="admin-panel"><h2>📝 Rekap Jawaban Semua Tim</h2><div id="allResults" class="scroll"></div></div>
     <div class="admin-panel"><h2>🔎 Review Per Tim</h2><div class="grid"><select id="reviewTeam"></select><button onclick="review()">LIHAT REVIEW TIM</button></div><div id="review" class="scroll"></div></div>
     <br><button class="alt" onclick="location.reload()">BUAT / GABUNG ROOM LAIN</button>
@@ -230,6 +256,7 @@ let adminLogged=sessionStorage.getItem("quiz_nusantara_admin_logged")==="1";
 let playerRoom=sessionStorage.getItem("quiz_nusantara_player_room")||"";
 let playerTeamId=sessionStorage.getItem("quiz_nusantara_player_team")||"";
 let playerName=sessionStorage.getItem("quiz_nusantara_player_name")||"";
+let appMode=sessionStorage.getItem("quiz_nusantara_mode")||"";
 const subjects=["Bahasa Indonesia","Matematika","IPAS","Pendidikan Pancasila","Seni","PJOK"];
 let selectedLevel="";
 const cls=document.getElementById("cls"), sub=document.getElementById("sub");
@@ -243,11 +270,17 @@ function hideAllMain(){["home","studentLogin","adminLogin","lobby","game","finis
 function showLogin(which){
   if(which==="student"){
     role="player";
+    appMode="player";
+    sessionStorage.setItem("quiz_nusantara_mode","player");
     // Never reuse an admin session when a student is opening the student screen.
     adminToken=""; adminLogged=false;
     sessionStorage.removeItem("quiz_nusantara_admin_token");
     sessionStorage.removeItem("quiz_nusantara_admin_logged");
     sessionStorage.removeItem("quiz_nusantara_admin_room");
+  }
+  if(which!=="student"){
+    appMode="teacher";
+    sessionStorage.setItem("quiz_nusantara_mode","teacher");
   }
   hideAllMain();
   el(which==="student"?"studentLogin":"adminLogin").classList.remove("hidden");
@@ -325,7 +358,8 @@ async function handleGoogleCredential(response){
     const r=await fetch("/api/admin/google-login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({credential:response.credential})});
     const data=await r.json();
     if(!r.ok||!data.ok)throw new Error(data.message||"Login Google gagal.");
-    adminToken=data.token; adminLogged=true;
+    adminToken=data.token; adminLogged=true; appMode="teacher";
+    sessionStorage.setItem("quiz_nusantara_mode","teacher");
     sessionStorage.setItem("quiz_nusantara_admin_token",adminToken);
     sessionStorage.setItem("quiz_nusantara_admin_logged","1");
     sessionStorage.setItem("quiz_nusantara_admin_name",data.name||"Admin");
@@ -344,6 +378,8 @@ async function handleGoogleCredential(response){
 
 function join(){
   role="player";
+  appMode="player";
+  sessionStorage.setItem("quiz_nusantara_mode","player");
   adminToken=""; adminLogged=false;
   playerRoom=el("code").value.trim().toUpperCase();
   playerName=el("student").value.trim();
@@ -393,8 +429,28 @@ function runGenerator(){
   document.getElementById("generatorModal")?.remove();
   socket.emit("generateQuestions",payload);
 }
-function studentExit(){sessionStorage.removeItem("quiz_nusantara_player_room");sessionStorage.removeItem("quiz_nusantara_player_team");sessionStorage.removeItem("quiz_nusantara_player_name");playerRoom="";playerTeamId="";playerName="";location.reload()}
-function adminLogout(){sessionStorage.removeItem("quiz_nusantara_admin_token");sessionStorage.removeItem("quiz_nusantara_admin_logged");adminToken="";adminLogged=false;role=null;codeNow="";state=null;location.reload()}
+function clearPlayerSession(){sessionStorage.removeItem("quiz_nusantara_mode");sessionStorage.removeItem("quiz_nusantara_player_room");sessionStorage.removeItem("quiz_nusantara_player_team");sessionStorage.removeItem("quiz_nusantara_player_name");playerRoom="";playerTeamId="";playerName="";}
+function clearAdminSession(){sessionStorage.removeItem("quiz_nusantara_mode");sessionStorage.removeItem("quiz_nusantara_admin_token");sessionStorage.removeItem("quiz_nusantara_admin_logged");sessionStorage.removeItem("quiz_nusantara_admin_room");adminToken="";adminLogged=false;}
+function studentLogout(){
+  const c=codeNow||playerRoom;
+  let done=false; const finish=()=>{if(done)return;done=true;clearPlayerSession();role=null;codeNow="";teamId="";state=null;location.reload()};
+  if(socket.connected&&c){socket.emit("playerLogout",{code:c},()=>finish());setTimeout(finish,900);}else finish();
+}
+function studentExit(){studentLogout()}
+function adminLogout(){
+  const c=codeNow||sessionStorage.getItem("quiz_nusantara_admin_room")||"";
+  let done=false; const finish=()=>{if(done)return;done=true;clearAdminSession();role=null;codeNow="";state=null;location.reload()};
+  if(socket.connected&&c){socket.emit("adminLogout",{code:c},()=>finish());setTimeout(finish,900);}else finish();
+}
+function closeRoom(){
+  if(role!=="teacher"||!codeNow)return toast("Tidak ada room aktif yang dapat ditutup.",true);
+  if(!confirm("Tutup room ini? Semua siswa akan otomatis logout dan room tidak dapat digunakan lagi."))return;
+  socket.emit("closeRoom",{code:codeNow},res=>{
+    if(!res?.ok)return toast(res?.message||"Gagal menutup room.",true);
+    clearAdminSession(); role=null; codeNow=""; state=null; toast("⛔ Room berhasil ditutup."); setTimeout(()=>location.reload(),250);
+  });
+}
+
 function nextQuestion(){if(role==="teacher")socket.emit("nextQuestion",{code:codeNow})}
 function stopTimer(){if(timerInterval){clearInterval(timerInterval);timerInterval=null}}
 function formatTime(sec){sec=Math.max(0,Math.floor(sec));return String(Math.floor(sec/60)).padStart(2,"0")+":"+String(sec%60).padStart(2,"0")}
@@ -432,7 +488,8 @@ function deleteQuiz(id){if(role!=="teacher"||!confirm("Hapus kuis tersimpan ini?
 
 
 socket.on("connect",()=>{
-  if(adminLogged&&adminToken){
+  // Explicit mode prevents a student tab from accidentally restoring an admin session.
+  if(appMode==="teacher" && adminLogged&&adminToken){
     socket.emit("adminAuth",{token:adminToken},res=>{
       if(res?.ok){
         role="teacher";
@@ -457,8 +514,17 @@ socket.on("roomReady",x=>{
   const btn=el("createSelectedRoomBtn"); if(btn){btn.disabled=false;btn.textContent="🚀 BUAT ROOM & SOAL";}
   toast(`✅ ${x.count} soal siap — ${x.className} • ${x.subject} • ${x.difficulty}`);
 });
-socket.on("created",x=>{codeNow=x.code;adminLogged=true;sessionStorage.setItem("quiz_nusantara_admin_logged","1");sessionStorage.setItem("quiz_nusantara_admin_room",codeNow);if(x.adminToken){adminToken=x.adminToken;sessionStorage.setItem("quiz_nusantara_admin_token",adminToken)}hideAllMain();el("lobby").classList.remove("hidden")});
-socket.on("joined",x=>{role="player";codeNow=x.code;teamId=x.teamId;playerRoom=x.code;playerTeamId=x.teamId;playerName=playerName||el("student")?.value||"Siswa";sessionStorage.setItem("quiz_nusantara_player_room",playerRoom);sessionStorage.setItem("quiz_nusantara_player_team",playerTeamId);sessionStorage.setItem("quiz_nusantara_player_name",playerName);hideAllMain();el("lobby").classList.remove("hidden")});
+socket.on("created",x=>{appMode="teacher";sessionStorage.setItem("quiz_nusantara_mode","teacher");codeNow=x.code;adminLogged=true;sessionStorage.setItem("quiz_nusantara_admin_logged","1");sessionStorage.setItem("quiz_nusantara_admin_room",codeNow);if(x.adminToken){adminToken=x.adminToken;sessionStorage.setItem("quiz_nusantara_admin_token",adminToken)}hideAllMain();el("lobby").classList.remove("hidden")});
+socket.on("joined",x=>{role="player";appMode="player";sessionStorage.setItem("quiz_nusantara_mode","player");codeNow=x.code;teamId=x.teamId;playerRoom=x.code;playerTeamId=x.teamId;playerName=playerName||el("student")?.value||"Siswa";sessionStorage.setItem("quiz_nusantara_player_room",playerRoom);sessionStorage.setItem("quiz_nusantara_player_team",playerTeamId);sessionStorage.setItem("quiz_nusantara_player_name",playerName);hideAllMain();el("lobby").classList.remove("hidden")});
+socket.on("roomClosed",x=>{
+  stopTimer();
+  if(role==="player")clearPlayerSession();
+  if(role==="teacher")clearAdminSession();
+  role=null; codeNow=""; teamId=""; state=null;
+  toast("⛔ "+(x?.message||"Room telah ditutup oleh admin."),true);
+  setTimeout(()=>location.reload(),350);
+});
+
 socket.on("errorMsg",m=>{showMsg(role==="teacher"?"adminMsg":"studentMsg",m,true);toast(m,true)});
 socket.on("questionsSaved",x=>{toast(`Berhasil menyimpan ${x.count} soal.`);});
 socket.on("questionsGenerated",x=>{editorQuestions=(state?.questionList||[]).map(q=>({...q,opts:[...(q.opts||[])]}));renderQuestionEditor();toast(`✨ ${x.count} soal otomatis dibuat untuk ${x.className} • ${x.subject}.`);adminTab("questions",document.querySelector(".admin-nav .tab-btn:nth-child(2)"));});
@@ -495,11 +561,15 @@ function renderRoom(){
   el("roomcode").textContent=state.code;
   el("meta").innerHTML=`<span class="pill">${escapeHtml(state.className)}</span><span class="pill">${escapeHtml(state.subject)}</span>`;
   el("teams").innerHTML=state.teams.length?state.teams.map(t=>`<div class="team"><b>${escapeHtml(t.name)}</b><br>${t.members.length}/10 siswa<br><span class="small">${t.members.map(escapeHtml).join(", ")||"Belum ada anggota"}</span><div class="team-score">${t.score} poin</div></div>`).join(""):"<div class='small'>Belum ada tim.</div>";
-  el("adminLobbyDashboard").classList.toggle("hidden",true);
-  el("adminShell").classList.toggle("hidden",role!=="teacher");
-  el("adminSidebar").classList.toggle("hidden",role!=="teacher"||state.status!=="lobby");
-  el("studentLobbyArea").classList.toggle("hidden",role!=="player"||state.status!=="lobby");
-  el("studentLobbyWaiting").classList.toggle("hidden",role!=="player"||state.status!=="lobby");
+  const isTeacher=role==="teacher";
+  const isPlayer=role==="player";
+  // Hard isolation: student never renders the admin shell/dashboard.
+  el("adminLobbyDashboard").classList.add("hidden");
+  el("adminShell").classList.toggle("hidden",!isTeacher);
+  el("adminSidebar").classList.toggle("hidden",!isTeacher||state.status!=="lobby");
+  el("studentLobbyArea").classList.toggle("hidden",!isPlayer||state.status!=="lobby");
+  el("studentLobbyWaiting").classList.toggle("hidden",!isPlayer||state.status!=="lobby");
+  el("adminDashboard").classList.toggle("hidden",!isTeacher);
   if(role==="teacher"&&state.status==="lobby"){
     const students=state.teams.reduce((n,t)=>n+t.members.length,0);
     el("statTeams").textContent=state.teams.length;
@@ -557,15 +627,25 @@ function renderAdminResults(){
   const rows=adminResults.rows||[];
   const answeredCount=rows.filter(r=>r.answered).length;
   if(el("liveAnswered"))el("liveAnswered").textContent=`${answeredCount}/${rows.length}`;
-  el("adminCurrentResults").innerHTML=`<h3>Soal ${adminResults.qIndex+1} — Hasil Jawaban Tim</h3><div class="scroll"><table class="result-table"><tr><th>Tim</th><th>Jawaban</th><th>Kunci</th><th>Hasil</th><th>Poin</th></tr>${rows.map(r=>`<tr><td><b>${escapeHtml(r.teamName)}</b></td><td>${escapeHtml(r.choice)}</td><td>${escapeHtml(r.correctAnswer)}</td><td class="${r.result==='BENAR'?'good':r.result==='BELUM MENJAWAB'?'pending':'bad'}">${r.result}</td><td><b>${r.points}</b></td></tr>`).join("")}</table></div>`;
+  el("adminCurrentResults").innerHTML=`<h3>Soal ${adminResults.qIndex+1} — Hasil Jawaban Tim</h3><div class="scroll"><table class="result-table"><tr><th>Tim</th><th>Jawaban</th><th>Dijawab oleh</th><th>Kunci</th><th>Hasil</th><th>Poin</th></tr>${rows.map(r=>`<tr><td><b>${escapeHtml(r.teamName)}</b></td><td>${escapeHtml(r.choice)}</td><td>${escapeHtml(r.submittedBy||"-")}</td><td>${escapeHtml(r.correctAnswer)}</td><td class="${r.result==='BENAR'?'good':r.result==='BELUM MENJAWAB'?'pending':'bad'}">${r.result}</td><td><b>${r.points}</b></td></tr>`).join("")}</table></div>`;
   el("leader").innerHTML=[...state.teams].sort((a,b)=>b.score-a.score).map(t=>`<li><span>${escapeHtml(t.name)}</span><b>${t.score} poin</b></li>`).join("");
 }
 
+function renderStudentSummary(){
+  const box=el("studentAnswerSummary");
+  if(!box||!state)return;
+  const rows=[];
+  (state.teams||[]).forEach(t=>(t.members||[]).forEach(name=>rows.push({name,team:t.name})));
+  box.innerHTML=rows.length?`<div class="dashboard-card"><h3>👥 Daftar Siswa & Kelompok</h3><div class="scroll"><table class="result-table"><tr><th>Siswa</th><th>Kelompok</th></tr>${rows.map(r=>`<tr><td>${escapeHtml(r.name)}</td><td>${escapeHtml(r.team)}</td></tr>`).join("")}</table></div></div>`:"";
+}
+
 function renderFinish(){
+  stopTimer();
   hideAllMain();el("finish").classList.remove("hidden");
   if(role==="player"){el("studentFinish").classList.remove("hidden");el("adminFinish").classList.add("hidden");return}
   el("adminFinish").classList.remove("hidden");el("studentFinish").classList.add("hidden");
   el("final").innerHTML=`<ol class="leader">${[...state.teams].sort((a,b)=>b.score-a.score).map(t=>`<li><span>${escapeHtml(t.name)} (${t.members.length} siswa)</span><b>${t.score} poin</b></li>`).join("")}</ol>`;
+  renderStudentSummary();
   if(adminResults)renderAllResults(adminResults.allQuestions||[]);
   el("reviewTeam").innerHTML=state.teams.map(t=>`<option value="${t.id}">${escapeHtml(t.name)}</option>`).join("");
 }
@@ -574,12 +654,12 @@ function renderAllResults(all){
   if(!all.length){el("allResults").innerHTML="Belum ada data jawaban.";return}
   let out="<table class='result-table'><tr><th>No</th><th>Soal</th><th>Kunci</th>";
   const teams=state.teams||[];teams.forEach(t=>out+=`<th>${escapeHtml(t.name)}</th>`);out+="</tr>";
-  all.forEach(q=>{out+=`<tr><td>${q.number}</td><td>${escapeHtml(q.question)}</td><td>${escapeHtml(q.correctAnswer)}</td>`;q.teams.forEach(t=>out+=`<td><b>${escapeHtml(t.answer)}</b><br><span class="${t.result==='BENAR'?'good':t.result==='BELUM MENJAWAB'?'pending':'bad'}">${t.result}</span> • ${t.points} poin</td>`);out+="</tr>"});
+  all.forEach(q=>{out+=`<tr><td>${q.number}</td><td>${escapeHtml(q.question)}</td><td>${escapeHtml(q.correctAnswer)}</td>`;q.teams.forEach(t=>out+=`<td><b>${escapeHtml(t.answer)}</b><br><small>👤 ${escapeHtml(t.submittedBy||"-")}</small><br><span class="${t.result==='BENAR'?'good':t.result==='BELUM MENJAWAB'?'pending':'bad'}">${t.result}</span> • ${t.points} poin</td>`);out+="</tr>"});
   el("allResults").innerHTML=out+"</table>";
 }
 function renderReview(rows){
   if(role!=="teacher")return;
-  el("review").innerHTML="<table class='result-table'><tr><th>No</th><th>Soal</th><th>Jawaban Tim</th><th>Kunci</th><th>Hasil</th><th>Poin</th></tr>"+rows.map(r=>`<tr><td>${r.number}</td><td>${escapeHtml(r.question)}</td><td>${escapeHtml(r.teamAnswer)}</td><td>${escapeHtml(r.correctAnswer)}</td><td class="${r.result==='BENAR'?'good':r.result==='BELUM MENJAWAB'?'pending':'bad'}">${r.result}</td><td>${r.score}</td></tr>`).join("")+"</table>";
+  el("review").innerHTML="<table class='result-table'><tr><th>No</th><th>Soal</th><th>Jawaban Tim</th><th>Dijawab oleh</th><th>Kunci</th><th>Hasil</th><th>Poin</th></tr>"+rows.map(r=>`<tr><td>${r.number}</td><td>${escapeHtml(r.question)}</td><td>${escapeHtml(r.teamAnswer)}</td><td>${escapeHtml(r.submittedBy||"-")}</td><td>${escapeHtml(r.correctAnswer)}</td><td class="${r.result==='BENAR'?'good':r.result==='BELUM MENJAWAB'?'pending':'bad'}">${r.result}</td><td>${r.score}</td></tr>`).join("")+"</table>";
 }
 function escapeHtml(s){return String(s??"").replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
 function escapeAttr(s){return escapeHtml(s).replace(/`/g,"&#96;")}

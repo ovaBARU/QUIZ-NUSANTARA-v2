@@ -1,3 +1,14 @@
+# QUIZ NUSANTARA v3.8
+
+## v3.8 — Logout, Tutup Room & Logo Tut Wuri
+- Tampilan siswa dipisahkan tegas dari Dashboard Admin.
+- Mode sesi (`player` / `teacher`) disimpan terpisah agar refresh/tab siswa tidak menghidupkan kembali Dashboard Admin.
+- Lobby siswa menampilkan **📚 Silahkan Menunggu** dan gambar `student-home.png`.
+- Setelah selesai, siswa hanya melihat **🎉 Terima Kasih!** tanpa kunci jawaban/rekapan.
+- Admin mendapatkan rekap semua soal, kunci, jawaban tiap kelompok, hasil, poin, dan nama siswa yang mengirim jawaban.
+- Review per tim juga menampilkan siswa pengirim jawaban.
+- Tetap kompatibel dengan Railway, Google Login, Socket.IO, dan generator AI Kurikulum Merdeka/Pembelajaran Mendalam dari v3.6.
+
 # QUIZ NUSANTARA v3.6
 
 Perbaikan utama: kontrol **MULAI PERMAINAN** admin dibuat lebih kuat setelah siswa bergabung. Server sekarang memberikan status/error yang jelas, memulihkan peran admin pada koneksi admin yang sah setelah refresh/reconnect, memvalidasi room, soal, dan peserta sebelum permainan dimulai, serta mengirim acknowledgement saat permainan berhasil dimulai.
@@ -152,3 +163,11 @@ Default port: `3000`.
 - Prompt generator diarahkan pada Kurikulum Merdeka dan pendekatan Pembelajaran Mendalam: mindful, meaningful, joyful serta memahami–mengaplikasi–merefleksi.
 - Pembelajaran Mendalam diperlakukan sebagai pendekatan pembelajaran, bukan nama kurikulum baru.
 - Jika OPENAI_API_KEY tidak tersedia, aplikasi tetap membuat room dengan generator lokal sebagai fallback.
+
+
+### v3.8
+- Tombol LOGOUT Admin tidak menonaktifkan room; peserta tetap berada di room.
+- Tombol TUTUP ROOM mengeluarkan seluruh peserta dan menghapus room aktif.
+- Siswa otomatis kembali ke halaman awal ketika room ditutup.
+- Admin dapat login kembali dengan akun Google yang sama untuk mengambil alih room yang masih aktif.
+- Logo QUIZ NUSANTARA diperbarui dengan identitas visual Tut Wuri Handayani.
