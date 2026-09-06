@@ -171,3 +171,10 @@ Default port: `3000`.
 - Siswa otomatis kembali ke halaman awal ketika room ditutup.
 - Admin dapat login kembali dengan akun Google yang sama untuk mengambil alih room yang masih aktif.
 - Logo QUIZ NUSANTARA diperbarui dengan identitas visual Tut Wuri Handayani.
+
+
+## v3.10
+- Siswa kembali melihat pertanyaan dan 4 pilihan jawaban saat permainan dimulai.
+- Siswa tidak memiliki tombol LOGOUT.
+- Pada soal terakhir, tombol admin berubah menjadi SELESAI dan membuka rekapan akhir.
+- Rekapan admin menampilkan semua soal, kunci, jawaban setiap tim, pengirim jawaban, serta status BENAR/SALAH/BELUM MENJAWAB.

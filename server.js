@@ -895,6 +895,7 @@ io.on("connection", socket => {
       room.questionStartedAt = null;
       emitRoom(room);
       emitAdmin(room);
+      io.to(room.code).emit("gameFinished", { code: room.code });
     }
   });
 
