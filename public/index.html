@@ -326,6 +326,12 @@ function chooseLevel(level){
 }
 function backToLevel(){el("detailStep").classList.add("hidden");el("levelStep").classList.remove("hidden");el("setupStep1").classList.add("active");el("setupStep2").classList.remove("active");}
 function showAdminSetup(){
+  // Setelah autentikasi Google berhasil, pilihan/login Google tidak lagi ditampilkan.
+  // Sesi admin tetap aktif melalui adminToken di sessionStorage.
+  const googleBtn=el("googleLoginButton");
+  const googleStatus=el("googleStatus");
+  if(googleBtn) googleBtn.classList.add("hidden");
+  if(googleStatus) googleStatus.classList.add("hidden");
   el("quizSetup").classList.remove("hidden");
   el("levelStep").classList.remove("hidden"); el("detailStep").classList.add("hidden");
   el("setupStep1").classList.add("active"); el("setupStep2").classList.remove("active");
