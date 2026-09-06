@@ -147,6 +147,15 @@ section{max-width:100%;min-width:0}
 @media(max-width:720px){.wrap{width:100%;padding:6px}.admin-shell{grid-template-columns:1fr}.admin-sidebar{position:relative;top:auto}.scroll-controls{right:8px;bottom:10px}.scroll-controls button{width:40px;height:40px}.modal-card{max-width:calc(100vw - 20px)}}
 </style>
 
+<style id="v3-20-recap">
+.recap-open-btn{max-width:520px;margin:22px auto 4px;display:block;font-size:18px;padding:15px 18px}
+.recap-modal-card{width:min(1100px,96vw);max-height:90vh;overflow:auto}
+.recap-menu{display:grid;grid-template-columns:1fr;gap:8px;margin-top:16px}.recap-menu-btn{width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 16px;border-radius:14px;border:1px solid #ffffff14;background:#ffffff08;color:#eef3ff;font-size:15px;font-weight:800;text-align:left;cursor:pointer;transition:.2s}.recap-menu-btn:hover{background:#ffffff10;transform:translateY(-1px)}.recap-menu-btn.active{border-color:#5edcff66;background:#12304a}.recap-menu-btn b{font-size:10px;letter-spacing:.8px;color:#8ff0ff}.recap-panel{display:none}.recap-panel-open{display:block}.recap-modal-card .recap-section{margin-top:10px;padding:14px;border:1px solid #ffffff12;border-radius:18px;background:#ffffff06}
+.recap-modal-card .recap-section h4{margin:0 0 8px;font-size:18px}
+.recap-modal-card .scroll{max-height:48vh;overflow:auto}
+.recap-modal-card .result-table{min-width:720px}
+@media(max-width:720px){.recap-modal-card{width:96vw;padding:16px}.recap-modal-card .grid{grid-template-columns:1fr}.recap-modal-card .scroll{max-height:42vh}.recap-open-btn{font-size:16px}}
+</style>
 </head>
 <body>
 <div class="bg"></div>
@@ -346,11 +355,8 @@ window.addEventListener("DOMContentLoaded",()=>{
   <div id="adminFinish" class="card hidden">
     <div class="finish-title">🏆 HASIL AKHIR</div>
     <p class="tag" id="finishDescription">Admin dapat melihat seluruh soal, kunci, jawaban peserta, dan status benar/salah.</p>
-    <div id="final"></div>
-    <div id="studentAnswerSummary"></div>
-    <div class="admin-panel"><h2 id="allResultsTitle">📝 Rekap Jawaban Semua Tim</h2><div id="allResults" class="scroll"></div></div>
-    <div class="admin-panel"><h2 id="reviewTitle">🔎 Review Per Tim</h2><div class="grid"><select id="reviewTeam"></select><button id="reviewBtn" onclick="review()">LIHAT REVIEW TIM</button></div><div id="review" class="scroll"></div></div>
-    <div class="room-actions" style="margin-top:20px;justify-content:flex-start;flex-wrap:wrap">
+    <button class="recap-open-btn" onclick="openRecapModal()">📊 LIHAT SEMUA REKAPAN</button>
+    <div class="room-actions" style="margin-top:20px;justify-content:center;flex-wrap:wrap">
       <button class="close-room-btn" onclick="closeRoom()">⛔ TUTUP ROOM</button>
       <button class="alt" onclick="location.reload()">BUAT / GABUNG ROOM LAIN</button>
     </div>
@@ -359,6 +365,21 @@ window.addEventListener("DOMContentLoaded",()=>{
 </section>
 
 <div id="toast" class="toast hidden"></div>
+<div id="recapModal" class="modal-backdrop hidden" onclick="if(event.target===this)closeRecapModal()">
+  <div class="modal-card recap-modal-card">
+    <div class="modal-head"><div><h3 id="recapModalTitle">📊 Rekapan Kuis</h3><div class="subtle">Seluruh hasil permainan dikumpulkan di satu tempat.</div></div><button class="alt" style="width:auto;padding:8px 12px" onclick="closeRecapModal()">✕</button></div>
+    <div class="recap-menu">
+      <button class="recap-menu-btn active" data-recap="score" onclick="toggleRecapSection('score')"><span>🏆 Papan Skor</span><b>BUKA</b></button>
+      <button class="recap-menu-btn" data-recap="answers" onclick="toggleRecapSection('answers')"><span id="allResultsButtonTitle">📝 Rekap Jawaban Semua Tim</span><b>BUKA</b></button>
+      <button class="recap-menu-btn" data-recap="review" onclick="toggleRecapSection('review')"><span id="reviewButtonTitle">🔎 Review Per Tim</span><b>BUKA</b></button>
+    </div>
+    <div id="recapSectionScore" class="recap-section recap-panel-open"><div id="recapFinal"></div></div>
+    <div id="recapSectionAnswers" class="recap-section recap-panel"><div id="allResults" class="scroll"></div></div>
+    <div id="recapSectionReview" class="recap-section recap-panel"><div class="grid"><select id="reviewTeam"></select><button id="reviewBtn" onclick="review()">LIHAT REVIEW TIM</button></div><div id="review" class="scroll"></div></div>
+    <div class="modal-actions"><button class="alt" onclick="closeRecapModal()">TUTUP REKAPAN</button></div>
+  </div>
+</div>
+
 <div id="identityModal" class="modal-backdrop hidden" onclick="if(event.target===this)closeStudentIdentities()">
   <div class="modal-card">
     <div class="modal-head"><div><h3>👤 Identitas Siswa yang Login</h3><div class="subtle" id="identityModalSub">Daftar peserta room.</div></div><button class="alt" style="width:auto;padding:8px 12px" onclick="closeStudentIdentities()">✕</button></div>
@@ -636,6 +657,32 @@ function answer(i){if(role!=="player"||answeredLocal||state?.myTeamAnswered)retu
 function review(){if(role==="teacher")socket.emit("requestReview",{code:codeNow,teamId:el("reviewTeam").value})}
 function toast(text,error=false){const t=el("toast");t.textContent=text;t.className="toast "+(error?"error":"ok");clearTimeout(window.toastTimer);window.toastTimer=setTimeout(()=>t.classList.add("hidden"),2600)}
 function copyRoomCode(){navigator.clipboard?.writeText(codeNow).then(()=>toast("Kode room berhasil disalin."),()=>toast("Kode room: "+codeNow));}
+function toggleRecapSection(which){
+  const map={score:"recapSectionScore",answers:"recapSectionAnswers",review:"recapSectionReview"};
+  Object.entries(map).forEach(([key,id])=>{
+    const panel=el(id),btn=document.querySelector(`[data-recap="${key}"]`);
+    const open=key===which;
+    panel?.classList.toggle("recap-panel-open",open);
+    panel?.classList.toggle("recap-panel",!open);
+    btn?.classList.toggle("active",open);
+    if(btn) btn.querySelector("b").textContent=open?"TERBUKA":"BUKA";
+  });
+}
+
+function openRecapModal(){
+  if(role!=="teacher"||!state)return;
+  const modal=el("recapModal");
+  const individual=state.quizMode==="individual";
+  el("recapModalTitle").textContent=individual?"📊 Rekapan Kuis Perorangan":"📊 Rekapan Kuis Tim";
+  el("recapFinal").innerHTML=`<ol class="leader">${[...(state.teams||[])].sort((a,b)=>b.score-a.score).map(t=>`<li><span>${escapeHtml(t.name)} (${t.members.length} siswa)</span><b>${t.score} poin</b></li>`).join("")}</ol>`;
+  el("reviewTeam").innerHTML=(state.teams||[]).map(t=>`<option value="${t.id}">${escapeHtml(t.name)}</option>`).join("");
+  el("review").innerHTML="";
+  toggleRecapSection("score");
+  if(adminResults)renderAllResults(adminResults.allQuestions||[]); else el("allResults").innerHTML="Belum ada data jawaban.";
+  modal.classList.remove("hidden");
+}
+function closeRecapModal(){el("recapModal")?.classList.add("hidden");}
+
 function openStudentIdentities(){
   if(role!=="teacher"||!state)return;
   const modal=el("identityModal"), list=el("identityList");
@@ -900,11 +947,9 @@ function renderFinish(){
   el("final").innerHTML=`<ol class="leader">${[...state.teams].sort((a,b)=>b.score-a.score).map(t=>`<li><span>${escapeHtml(t.name)} (${t.members.length} siswa)</span><b>${t.score} poin</b></li>`).join("")}</ol>`;
   const individual=state.quizMode==="individual";
   if(el("finishDescription"))el("finishDescription").textContent=individual?"Admin dapat melihat hasil setiap siswa, seluruh soal, kunci jawaban, serta status BENAR/SALAH.":"Admin dapat melihat seluruh soal, kunci, jawaban tiap tim, siswa yang mengirim jawaban, serta status BENAR/SALAH.";
-  if(el("allResultsTitle"))el("allResultsTitle").textContent=individual?"📝 Rekap Jawaban Semua Siswa":"📝 Rekap Jawaban Semua Tim";
-  if(el("reviewTitle"))el("reviewTitle").textContent=individual?"🔎 Review Per Siswa":"🔎 Review Per Tim";
+  if(el("allResultsButtonTitle"))el("allResultsButtonTitle").textContent=individual?"📝 Rekap Jawaban Semua Siswa":"📝 Rekap Jawaban Semua Tim";
+  if(el("reviewButtonTitle"))el("reviewButtonTitle").textContent=individual?"🔎 Review Per Siswa":"🔎 Review Per Tim";
   renderStudentSummary();
-  if(adminResults)renderAllResults(adminResults.allQuestions||[]);
-  el("reviewTeam").innerHTML=state.teams.map(t=>`<option value="${t.id}">${escapeHtml(t.name)}</option>`).join("");
   if(el("reviewBtn"))el("reviewBtn").textContent=state.quizMode==="individual"?"LIHAT REVIEW SISWA":"LIHAT REVIEW TIM";
 }
 
