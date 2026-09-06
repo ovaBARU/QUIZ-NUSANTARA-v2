@@ -16,7 +16,7 @@ app.get("/", (req, res) => {
   res.sendFile(path.join(process.cwd(), "public", "index.html"));
 });
 app.get("/health", (req, res) => {
-  res.json({ ok: true, app: "QUIZ NUSANTARA", version: "3.22.0" });
+  res.json({ ok: true, app: "QUIZ NUSANTARA", version: "3.25.0" });
 });
 
 app.use(express.json({ limit: "1mb" }));
@@ -96,17 +96,50 @@ function validAdminToken(token) {
 // v2.8 persistence: Railway PostgreSQL when DATABASE_URL exists, JSON fallback otherwise.
 const DATA_DIR = path.join(process.cwd(), "data");
 const QUIZ_FILE = path.join(DATA_DIR, "quizzes.json");
+const QUIZ_BANK_DIR = path.join(DATA_DIR, "quiz-bank");
 fs.mkdirSync(DATA_DIR, { recursive: true });
 const pool = process.env.DATABASE_URL ? new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false }, max: 5 }) : null;
 let storageMode = pool ? "postgres" : "json";
 
-function cleanQuizQuestions(questions) {
+function cleanQuizQuestions(questions, packageSubject = "Umum") {
   if (!Array.isArray(questions)) return [];
   return questions.map((q, i) => {
-    const opts = Array.isArray(q.opts) ? q.opts.map(v => String(v ?? "").trim()).filter(Boolean).slice(0, 4) : [];
+    // v3.25 compact storage accepts both old `opts` and compact `o`.
+    const rawOpts = Array.isArray(q.opts) ? q.opts : q.o;
+    const opts = Array.isArray(rawOpts) ? rawOpts.map(v => String(v ?? "").trim()).filter(Boolean).slice(0, 4) : [];
     const a = Number(q.a);
-    return { id: i + 1, subject: String(q.subject || "Umum").trim() || "Umum", q: String(q.q || "").trim(), opts, a: Number.isInteger(a) && a >= 0 && a < opts.length ? a : 0, e: String(q.e || "").trim() };
+    return { id: i + 1, subject: String(q.subject || packageSubject || "Umum").trim() || "Umum", q: String(q.q || "").trim(), opts, a: Number.isInteger(a) && a >= 0 && a < opts.length ? a : 0, e: String(q.e || "").trim() };
   });
+}
+
+function normalizeQuizPackage(pkg) {
+  if (!pkg || typeof pkg !== "object") return pkg;
+  return {
+    ...pkg,
+    questions: cleanQuizQuestions(pkg.questions, pkg.subject || "Umum"),
+    updatedAt: pkg.updatedAt || new Date().toISOString()
+  };
+}
+
+function compactQuizPackage(pkg) {
+  return {
+    id: pkg.id,
+    name: pkg.name,
+    subject: pkg.subject,
+    description: pkg.description || "",
+    builtIn: !!pkg.builtIn,
+    questions: (pkg.questions || []).map(q => ({
+      q: q.q,
+      o: q.opts,
+      a: q.a,
+      e: q.e || ""
+    })),
+    updatedAt: pkg.updatedAt || new Date().toISOString()
+  };
+}
+
+function compactQuizBank(bank) {
+  return bank.map(compactQuizPackage);
 }
 
 async function loadQuizBank() {
@@ -114,8 +147,26 @@ async function loadQuizBank() {
     try {
       await pool.query(`CREATE TABLE IF NOT EXISTS quiz_bank (id TEXT PRIMARY KEY, name TEXT NOT NULL, subject TEXT, description TEXT, built_in BOOLEAN NOT NULL DEFAULT FALSE, questions JSONB NOT NULL, updated_at TIMESTAMPTZ NOT NULL)`);
       const result = await pool.query(`SELECT id,name,subject,description,built_in,questions,updated_at FROM quiz_bank ORDER BY built_in DESC, updated_at DESC`);
-      if (result.rows.length) return result.rows.map(r => ({ id:r.id, name:r.name, subject:r.subject, description:r.description, builtIn:r.built_in, questions:r.questions, updatedAt:r.updated_at }));
-      const seed = Object.entries(subjects).map(([name, qs]) => ({ id: "builtin-" + name.toLowerCase().replace(/[^a-z0-9]+/g, "-"), name, subject:name, description:"Soal bawaan QUIZ NUSANTARA", builtIn:true, questions:cleanQuizQuestions(qs.map(q => ({...q, subject:name}))), updatedAt:new Date().toISOString() }));
+      if (result.rows.length) {
+        const rows = result.rows.map(r => normalizeQuizPackage({ id:r.id, name:r.name, subject:r.subject, description:r.description, builtIn:r.built_in, questions:r.questions, updatedAt:r.updated_at }));
+        // Upgrade older built-in banks automatically to the current 1,000-question catalog.
+        for (const q of rows) {
+          if (!q.builtIn || !Array.isArray(q.questions) || q.questions.length >= 1000) continue;
+          const m = String(q.id || '').match(/^builtin-(sd|smp|sma)-(\d+)-/i);
+          if (!m) continue;
+          const className = `${m[1].toUpperCase()} ${m[2]}`;
+          const generated = buildBuiltinQuestions(className, q.subject);
+          if (generated.length >= 1000) {
+            q.questions = generated.map((x,i)=>({ ...x, id:i+1 }));
+            q.name = `${q.subject} — ${className} (1.000 Soal)`;
+            q.description = `1.000 soal bawaan ${q.subject}, ${className}, dengan variasi konteks memahami–mengaplikasi–menganalisis–merefleksi sesuai pendekatan Pembelajaran Mendalam.`;
+            q.updatedAt = new Date().toISOString();
+            await pool.query(`UPDATE quiz_bank SET name=$2,description=$3,questions=$4::jsonb,updated_at=$5 WHERE id=$1`, [q.id,q.name,q.description,JSON.stringify(q.questions),q.updatedAt]);
+          }
+        }
+        return rows;
+      }
+      const seed = Object.entries(subjects).map(([name, qs]) => ({ id: "builtin-" + name.toLowerCase().replace(/[^a-z0-9]+/g, "-"), name, subject:name, description:"Soal bawaan QUIZ NUSANTARA", builtIn:true, questions:cleanQuizQuestions(qs.map(q => ({...q, subject:name})), name), updatedAt:new Date().toISOString() }));
       for (const q of seed) await pool.query(`INSERT INTO quiz_bank (id,name,subject,description,built_in,questions,updated_at) VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7) ON CONFLICT (id) DO NOTHING`, [q.id,q.name,q.subject,q.description,q.builtIn,JSON.stringify(q.questions),q.updatedAt]);
       return seed;
     } catch (err) {
@@ -123,12 +174,30 @@ async function loadQuizBank() {
       storageMode = "json";
     }
   }
+  // v3.26: class-split JSON bank. Each file stays small enough for GitHub web upload.
+  try {
+    if (fs.existsSync(QUIZ_BANK_DIR)) {
+      const files = fs.readdirSync(QUIZ_BANK_DIR)
+        .filter(f => /^bank-\d+\.json$/i.test(f))
+        .sort();
+      if (files.length) {
+        const merged = [];
+        for (const file of files) {
+          const part = JSON.parse(fs.readFileSync(path.join(QUIZ_BANK_DIR, file), "utf8"));
+          if (Array.isArray(part)) merged.push(...part);
+        }
+        if (merged.length) return merged.map(normalizeQuizPackage);
+      }
+    }
+  } catch (err) { console.error("Split quiz bank read failed:", err.message); }
+  // Backward compatibility with v3.25 and older deployments.
   try {
     const raw = JSON.parse(fs.readFileSync(QUIZ_FILE, "utf8"));
-    if (Array.isArray(raw) && raw.length) return raw;
+    if (Array.isArray(raw) && raw.length) return raw.map(normalizeQuizPackage);
   } catch (_) {}
   const seed = Object.entries(subjects).map(([name, qs]) => ({ id:"builtin-"+name.toLowerCase().replace(/[^a-z0-9]+/g,"-"), name, subject:name, description:"Soal bawaan QUIZ NUSANTARA", builtIn:true, questions:cleanQuizQuestions(qs.map(q=>({...q,subject:name}))), updatedAt:new Date().toISOString() }));
-  fs.writeFileSync(QUIZ_FILE, JSON.stringify(seed,null,2));
+  fs.mkdirSync(QUIZ_BANK_DIR, { recursive: true });
+  fs.writeFileSync(path.join(QUIZ_BANK_DIR, "bank-01.json"), JSON.stringify(compactQuizBank(seed)));
   return seed;
 }
 
@@ -138,7 +207,23 @@ async function saveQuizBank() {
     await pool.query(`DELETE FROM quiz_bank WHERE id <> ALL($1::text[])`, [quizBank.map(q=>q.id)]);
     return;
   }
-  fs.writeFileSync(QUIZ_FILE, JSON.stringify(quizBank,null,2));
+  // v3.26: persist JSON in small class-sized chunks instead of one huge file.
+  fs.mkdirSync(QUIZ_BANK_DIR, { recursive: true });
+  const groups = new Map();
+  for (const pkg of quizBank) {
+    const m = String(pkg.name || "").match(/(?:—|-)\s*(SD|SMP|SMA)\s*(\d+)/i);
+    const key = m ? `${m[1].toUpperCase()} ${m[2]}` : "OTHER";
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(pkg);
+  }
+  for (const f of fs.readdirSync(QUIZ_BANK_DIR)) {
+    if (/^bank-\d+\.json$/i.test(f)) fs.unlinkSync(path.join(QUIZ_BANK_DIR, f));
+  }
+  let index = 1;
+  for (const pkgs of groups.values()) {
+    fs.writeFileSync(path.join(QUIZ_BANK_DIR, `bank-${String(index++).padStart(2,"0")}.json`), JSON.stringify(compactQuizBank(pkgs)));
+  }
+  fs.writeFileSync(path.join(QUIZ_BANK_DIR, "index.json"), JSON.stringify({ version:"3.26.0", format:"class-split-v1", packages:quizBank.length, questions:quizBank.reduce((n,p)=>n+(p.questions?.length||0),0) }));
 }
 
 function publicQuiz(q) { return { id:q.id, name:q.name, subject:q.subject, description:q.description||"", builtIn:!!q.builtIn, questionCount:q.questions.length, updatedAt:q.updatedAt }; }
@@ -190,6 +275,8 @@ function shuffleArray(arr) {
   const a = [...arr]; for (let i=a.length-1;i>0;i--) { const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a;
 }
 function generatedQuestions(className, subject, count=10) {
+  const builtIn = buildBuiltinQuestions(className, String(subject || "Matematika"));
+  if (builtIn.length) return shuffleArray(builtIn).slice(0, Math.min(1000, Math.max(1, Number(count) || 10))).map((x,i)=>({ ...x, id:i+1 }));
   const band = gradeBand(className), s = String(subject || "Matematika");
   let bank = [];
   if (s === "Matematika") {
@@ -346,7 +433,7 @@ function buildBuiltinQuestions(className, subject) {
 
   if (subject === "Matematika") {
     const out = [];
-    for (let i=1;i<=100;i++) {
+    for (let i=1;i<=1000;i++) {
       const mode=i%10;
       let q,opts,ans,e;
       if (band === "sd-low") {
@@ -455,7 +542,7 @@ function buildBuiltinQuestions(className, subject) {
   const ansList = answers[subject]?.[key];
   if (!list || !ansList) return [];
   const out=[];
-  for(let i=0;i<100;i++){
+  for(let i=0;i<1000;i++){
     const idx=i%list.length;
     const choices=[...ansList[idx]];
     const answer=0;
@@ -481,7 +568,7 @@ function buildBuiltinQuestions(className, subject) {
 function makeQuestions(subject, className="SD 1") {
   if (subject === "GAME CAMPURAN") {
     const mixed = Object.keys(subjects).flatMap(s => buildBuiltinQuestions(className, s));
-    return shuffleArray(mixed).slice(0, 100).map((x, i) => ({ ...x, id:i+1 }));
+    return shuffleArray(mixed).slice(0, 1000).map((x, i) => ({ ...x, id:i+1 }));
   }
   const built = buildBuiltinQuestions(className, subject);
   if (built.length) return built.map((x,i)=>({ ...x, id:i+1 }));
@@ -611,7 +698,7 @@ io.on("connection", socket => {
     const finalSubject = String(subject || "GAME CAMPURAN").trim();
     const finalDifficulty = String(difficulty || "sedang").trim().toLowerCase();
     const finalQuizMode = String(quizMode || "team").trim().toLowerCase()==="individual" ? "individual" : "team";
-    const finalCount = Math.min(100, Math.max(5, Number(count) || 30));
+    const finalCount = Math.min(1000, Math.max(5, Number(count) || 30));
     const mode = String(source || (OPENAI_API_KEY ? "online" : "local")).toLowerCase();
     const room = {
       code, className: finalClass, subject: finalSubject, difficulty: finalDifficulty, quizMode: finalQuizMode, questionSource: mode,
@@ -866,7 +953,7 @@ io.on("connection", socket => {
     if (room.status !== "lobby") return socket.emit("errorMsg", "Generate soal hanya dapat dilakukan sebelum permainan dimulai.");
     const finalClass = className || room.className;
     const finalSubject = subject || room.subject;
-    const finalCount = Math.min(30, Math.max(5, Number(count) || 10));
+    const finalCount = Math.min(1000, Math.max(5, Number(count) || 10));
     const mode = String(source || "local").toLowerCase();
     try {
       socket.emit("generationStarted", { source: mode, count: finalCount });
@@ -1015,7 +1102,7 @@ async function ensureBuiltinQuizBank() {
     for (const subject of Object.keys(subjects)) {
       const id = "builtin-" + className.toLowerCase().replace(/[^a-z0-9]+/g,"-") + "-" + subject.toLowerCase().replace(/[^a-z0-9]+/g,"-");
       const questions = buildBuiltinQuestions(className, subject);
-      builtins.push({ id, name:`${subject} — ${className} (100 Soal)`, subject, className, description:`100 soal bawaan untuk ${subject}, ${className}.`, builtIn:true, questions:cleanQuizQuestions(questions), updatedAt:new Date().toISOString() });
+      builtins.push({ id, name:`${subject} — ${className} (1.000 Soal)`, subject, className, description:`1.000 soal bawaan untuk ${subject}, ${className}.`, builtIn:true, questions:cleanQuizQuestions(questions), updatedAt:new Date().toISOString() });
     }
   }
   const custom = quizBank.filter(q => !q.builtIn);
@@ -1030,7 +1117,7 @@ async function ensureBuiltinQuizBank() {
     }
     await pool.query(`DELETE FROM quiz_bank WHERE built_in = TRUE AND NOT (id = ANY($1::text[]))`, [builtins.map(q=>q.id)]);
   } else {
-    fs.writeFileSync(QUIZ_FILE, JSON.stringify(quizBank,null,2));
+    fs.writeFileSync(QUIZ_FILE, JSON.stringify(compactQuizBank(quizBank)));
   }
 }
 

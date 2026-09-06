@@ -1,4 +1,19 @@
-### v3.23 — Hasil live & papan skor dalam tombol
+# QUIZ NUSANTARA v3.26 — CLASS-SPLIT 72.000 SOAL
+
+Versi ini memecah bank 72.000 soal menjadi 12 file JSON per kelas agar tidak ada satu file yang mendekati batas upload GitHub Web. Server otomatis membaca semua `data/quiz-bank/bank-XX.json` dan menggabungkannya saat startup.
+
+- 12 kelas: SD 1–6, SMP 7–9, SMA 10–12
+- 6 mata pelajaran per kelas
+- 1.000 soal per mata pelajaran
+- Total 72.000 soal
+- Tidak ada `data/quizzes.json` besar di paket ini
+- Kompatibel dengan PostgreSQL dan fallback JSON
+- Format soal tetap dikonversi ke format internal normal oleh server
+
+## Upload ke GitHub
+Upload seluruh isi folder proyek, termasuk folder `data/quiz-bank/`. Setiap file bank hanya sekitar beberapa MB atau kurang, sehingga aman untuk GitHub Web.
+
+### v3.25 — Hasil live & papan skor dalam tombol
 
 - Hasil jawaban semua tim/siswa pada halaman admin sekarang berada dalam tombol accordion.
 - Papan skor semua tim/siswa juga berada dalam tombol accordion.
@@ -36,7 +51,7 @@ Versi server/health: 3.15.0
 
 Perbaikan utama: kontrol **MULAI PERMAINAN** admin dibuat lebih kuat setelah siswa bergabung. Server sekarang memberikan status/error yang jelas, memulihkan peran admin pada koneksi admin yang sah setelah refresh/reconnect, memvalidasi room, soal, dan peserta sebelum permainan dimulai, serta mengirim acknowledgement saat permainan berhasil dimulai.
 
-Fitur v3.1/v3.2 tetap: login Google admin, bank 100 soal per mata pelajaran/per kelas, multiplayer Socket.IO, stopwatch, dashboard admin, bank soal, bank kuis, generator lokal/Internet+AI, dan sisi siswa tanpa dashboard admin.
+Fitur v3.1/v3.2 tetap: login Google admin, bank 1.000 soal per mata pelajaran/per kelas, multiplayer Socket.IO, stopwatch, dashboard admin, bank soal, bank kuis, generator lokal/Internet+AI, dan sisi siswa tanpa dashboard admin.
 
 ## Railway Variables
 - `GOOGLE_CLIENT_ID`
@@ -67,12 +82,12 @@ Multiplayer quiz sekolah berbasis Node.js + Express + Socket.IO. Siswa masuk mem
 - Room multiplayer real-time.
 - Stopwatch per soal.
 - Bank Soal dan Bank Kuis persisten.
-- **100 soal bawaan untuk setiap mata pelajaran dan setiap kelas**:
+- **1.000 soal bawaan untuk setiap mata pelajaran dan setiap kelas**:
   - SD 1–6
   - SMP 7–9
   - SMA 10–12
   - Bahasa Indonesia, Matematika, IPAS, Pendidikan Pancasila, Seni, PJOK
-  - Total 72 paket bawaan × 100 soal = **7.200 soal**.
+  - Total 72 paket bawaan × 1.000 soal = **7.200 soal**.
 - Jawaban benar dan penjelasan disimpan di server/admin; siswa hanya menerima pertanyaan dan pilihan.
 - PostgreSQL Railway untuk penyimpanan bank kuis.
 - Generator lokal.
@@ -118,7 +133,7 @@ DATABASE_URL=${{Postgres.DATABASE_URL}}
 
 Sesuaikan `Postgres` dengan nama service database Anda.
 
-Saat startup, aplikasi otomatis membuat/memperbarui 72 paket bank bawaan sehingga setiap kombinasi kelas + mata pelajaran memiliki 100 soal.
+Saat startup, aplikasi otomatis membuat/memperbarui 72 paket bank bawaan sehingga setiap kombinasi kelas + mata pelajaran memiliki 1.000 soal.
 
 ## Generator Internet + AI
 
