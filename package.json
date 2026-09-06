@@ -1,6 +1,6 @@
 {
   "name": "quiz-nusantara",
-  "version": "3.21.0",
+  "version": "3.22.0",
   "private": true,
   "description": "QUIZ NUSANTARA - multiplayer quiz dengan perbaikan tampilan hasil semua tim",
   "main": "server.js",

@@ -74,6 +74,18 @@ h1{font-size:clamp(36px,7vw,76px);line-height:.95;margin:14px 0 10px;text-align:
 /* v3.21: tampilkan seluruh tim pada hasil soal aktif. Sebelumnya area 125px memotong tim ke-3. */
 #adminCurrentResults .scroll{max-height:320px!important;overflow:auto}
 @media(max-width:720px){#adminCurrentResults .scroll{max-height:280px!important}}
+
+/* v3.22: hasil jawaban live dan papan skor dikelompokkan dalam tombol accordion */
+.live-result-buttons{display:grid;gap:10px;margin-top:18px}
+.live-result-group{min-width:0}
+.live-recap-btn{margin:0!important;width:100%!important;text-align:left;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 16px!important;border:1px solid #ffffff14!important;background:linear-gradient(145deg,#ffffff0d,#ffffff06)!important}
+.live-recap-btn span{font-size:15px;font-weight:800}
+.live-recap-btn b{font-size:11px;color:#8fe7ff;white-space:nowrap}
+.live-recap-btn.active{border-color:#6c63ff66!important;background:linear-gradient(135deg,#6c63ff22,#00b8ff12)!important}
+.live-collapsible{margin-top:8px;padding:12px;border:1px solid #ffffff12;border-radius:16px;background:#ffffff05;min-width:0}
+.live-collapsible .leader{margin:0}
+.live-collapsible .result-table{margin-top:0}
+@media(max-width:720px){.live-recap-btn{padding:11px 13px!important}.live-recap-btn span{font-size:14px}.live-collapsible{padding:9px}}
 </style>
 
 <style id="v3-20-compact">
@@ -344,8 +356,16 @@ window.addEventListener("DOMContentLoaded",()=>{
       <div class="live-question-card"><div class="live-question-number" id="liveQuestionNo">SOAL 1</div><div class="live-question-text" id="liveQuestionText">-</div><div class="subtle" id="liveQuestionSubject">-</div><div class="admin-game-actions"><button id="nextQuestionBtn" class="next" onclick="nextQuestion()">SOAL BERIKUTNYA →</button></div></div>
       <div class="live-side"><div class="mini-score"><div class="t">TIM BERGABUNG</div><div class="n" id="liveTeams">0</div></div><div class="mini-score"><div class="t">JAWABAN MASUK</div><div class="n" id="liveAnswered">0/0</div></div><div class="mini-score"><div class="t">SOAL</div><div class="n" id="liveProgress">1/1</div></div></div>
     </div>
-    <div id="adminCurrentResults" style="margin-top:18px"></div>
-    <div style="margin-top:18px"><h3>🏆 Papan Skor</h3><ol id="leader" class="leader"></ol></div>
+    <div class="live-result-buttons">
+      <div class="live-result-group">
+        <button id="liveAnswersToggle" class="recap-menu-btn live-recap-btn" onclick="toggleLiveAdminSection('answers')"><span>📝 Hasil Jawaban Semua Tim</span><b>BUKA</b></button>
+        <div id="adminCurrentResults" class="live-collapsible hidden"></div>
+      </div>
+      <div class="live-result-group">
+        <button id="liveScoreToggle" class="recap-menu-btn live-recap-btn" onclick="toggleLiveAdminSection('score')"><span>🏆 Papan Skor Semua Tim</span><b>BUKA</b></button>
+        <div id="liveScorePanel" class="live-collapsible hidden"><ol id="leader" class="leader"></ol></div>
+      </div>
+    </div>
   </div>
 </section>
 
@@ -927,12 +947,32 @@ function renderQuestion(){
   }
 }
 
+function toggleLiveAdminSection(which){
+  const map={answers:["adminCurrentResults","liveAnswersToggle"],score:["liveScorePanel","liveScoreToggle"]};
+  const item=map[which]; if(!item)return;
+  const panel=el(item[0]), btn=el(item[1]);
+  if(!panel||!btn)return;
+  const willOpen=panel.classList.contains("hidden");
+  ["adminCurrentResults","liveScorePanel"].forEach(id=>{const p=el(id);if(p)p.classList.add("hidden")});
+  ["liveAnswersToggle","liveScoreToggle"].forEach(id=>{const b=el(id);if(b){b.classList.remove("active");const x=b.querySelector("b");if(x)x.textContent="BUKA"}});
+  if(willOpen){
+    panel.classList.remove("hidden");
+    btn.classList.add("active");
+    const x=btn.querySelector("b");if(x)x.textContent="TUTUP";
+  }
+}
+
 function renderAdminResults(){
   if(role!=="teacher"||!adminResults)return;
   const rows=adminResults.rows||[];
   const answeredCount=rows.filter(r=>r.answered).length;
   if(el("liveAnswered"))el("liveAnswered").textContent=`${answeredCount}/${rows.length}`;
-  el("adminCurrentResults").innerHTML=`<h3>Soal ${adminResults.qIndex+1} — Hasil Jawaban ${state?.quizMode==="individual"?"Siswa":"Tim"}</h3><div class="scroll"><table class="result-table"><tr><th>Tim</th><th>Jawaban</th><th>Dijawab oleh</th><th>Kunci</th><th>Hasil</th><th>Poin</th></tr>${rows.map(r=>`<tr><td><b>${escapeHtml(r.teamName)}</b></td><td>${escapeHtml(r.choice)}</td><td>${escapeHtml(r.submittedBy||"-")}</td><td>${escapeHtml(r.correctAnswer)}</td><td class="${r.result==='BENAR'?'good':r.result==='BELUM MENJAWAB'?'pending':'bad'}">${r.result}</td><td><b>${r.points}</b></td></tr>`).join("")}</table></div>`;
+  const individual=state?.quizMode==="individual";
+  const answerBtn=el("liveAnswersToggle");
+  const scoreBtn=el("liveScoreToggle");
+  if(answerBtn){const s=answerBtn.querySelector("span");if(s)s.textContent=individual?"📝 Hasil Jawaban Semua Siswa":"📝 Hasil Jawaban Semua Tim";}
+  if(scoreBtn){const s=scoreBtn.querySelector("span");if(s)s.textContent=individual?"🏆 Papan Skor Semua Siswa":"🏆 Papan Skor Semua Tim";}
+  el("adminCurrentResults").innerHTML=`<h3>Soal ${adminResults.qIndex+1} — Hasil Jawaban ${individual?"Siswa":"Tim"}</h3><div class="scroll"><table class="result-table"><tr><th>${individual?"Siswa":"Tim"}</th><th>Jawaban</th><th>Dijawab oleh</th><th>Kunci</th><th>Hasil</th><th>Poin</th></tr>${rows.map(r=>`<tr><td><b>${escapeHtml(r.teamName)}</b></td><td>${escapeHtml(r.choice)}</td><td>${escapeHtml(r.submittedBy||"-")}</td><td>${escapeHtml(r.correctAnswer)}</td><td class="${r.result==='BENAR'?'good':r.result==='BELUM MENJAWAB'?'pending':'bad'}">${r.result}</td><td><b>${r.points}</b></td></tr>`).join("")}</table></div>`;
   el("leader").innerHTML=[...state.teams].sort((a,b)=>b.score-a.score).map(t=>`<li><span>${escapeHtml(t.name)}</span><b>${t.score} poin</b></li>`).join("");
 }
 

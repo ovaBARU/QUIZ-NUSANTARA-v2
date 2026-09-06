@@ -1,3 +1,9 @@
+### v3.22 — Hasil live & papan skor dalam tombol
+
+- Hasil jawaban semua tim/siswa pada halaman admin sekarang berada dalam tombol accordion.
+- Papan skor semua tim/siswa juga berada dalam tombol accordion.
+- Keduanya default tertutup agar halaman admin lebih rapi.
+
 # QUIZ NUSANTARA v3.15
 
 Perbaikan utama v3.15:
