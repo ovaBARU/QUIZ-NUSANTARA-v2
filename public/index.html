@@ -599,9 +599,10 @@ function renderRoom(){
   if(isPlayer) role="player";
   if(isTeacher) role="teacher";
   // Hard isolation: student never renders the admin shell/dashboard.
-  el("adminLobbyDashboard").classList.add("hidden");
-  el("adminShell").classList.toggle("hidden",!isTeacher);
-  el("adminSidebar").classList.toggle("hidden",!isTeacher||state.status!=="lobby");
+  const adminShell=el("adminShell");
+  if(adminShell) adminShell.classList.toggle("hidden",!isTeacher);
+  const adminSidebar=el("adminSidebar");
+  if(adminSidebar) adminSidebar.classList.toggle("hidden",!isTeacher||state.status!=="lobby");
   el("studentLobbyArea").classList.toggle("hidden",!isPlayer||state.status!=="lobby");
   el("studentLobbyWaiting").classList.toggle("hidden",!isPlayer||state.status!=="lobby");
   el("adminDashboard").classList.toggle("hidden",!isTeacher);

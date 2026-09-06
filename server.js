@@ -16,7 +16,7 @@ app.get("/", (req, res) => {
   res.sendFile(path.join(process.cwd(), "public", "index.html"));
 });
 app.get("/health", (req, res) => {
-  res.json({ ok: true, app: "QUIZ NUSANTARA", version: "3.8.0" });
+  res.json({ ok: true, app: "QUIZ NUSANTARA", version: "3.15.0" });
 });
 
 app.use(express.json({ limit: "1mb" }));

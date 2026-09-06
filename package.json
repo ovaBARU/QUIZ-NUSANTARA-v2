@@ -1,6 +1,6 @@
 {
   "name": "quiz-nusantara",
-  "version": "3.14.0",
+  "version": "3.15.0",
   "private": true,
   "description": "QUIZ NUSANTARA - multiplayer quiz dengan login Google admin dan bank 100 soal per mata pelajaran/per kelas",
   "main": "server.js",

@@ -1,3 +1,13 @@
+# QUIZ NUSANTARA v3.15
+
+Perbaikan utama v3.15:
+- Memperbaiki bug dashboard siswa yang tetap menampilkan Dashboard Admin.
+- Menghapus referensi elemen admin lama yang menyebabkan `renderRoom()` berhenti sebelum UI siswa dirender.
+- Mode siswa (`player`) dipaksa tetap terisolasi dari shell admin.
+- Dashboard siswa menampilkan halaman "📚 Silakan Menunggu" setelah berhasil masuk room.
+- Fitur soal siswa, selesai, rekap admin, dan Tutup Room tetap dipertahankan dari versi sebelumnya.
+
+Versi server/health: 3.15.0
 
 ## v3.14
 - Setelah Admin menekan SELESAI pada soal terakhir, Admin langsung masuk ke HASIL AKHIR.
