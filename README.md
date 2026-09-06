@@ -1,4 +1,4 @@
-# QUIZ NUSANTARA v3.3
+# QUIZ NUSANTARA v3.4
 
 Perbaikan utama: kontrol **MULAI PERMAINAN** admin dibuat lebih kuat setelah siswa bergabung. Server sekarang memberikan status/error yang jelas, memulihkan peran admin pada koneksi admin yang sah setelah refresh/reconnect, memvalidasi room, soal, dan peserta sebelum permainan dimulai, serta mengirim acknowledgement saat permainan berhasil dimulai.
 
@@ -127,3 +127,10 @@ npm start
 ```
 
 Default port: `3000`.
+
+
+## v3.4 — Fix multiplayer state
+- Sesi Admin dipisahkan per-tab menggunakan `sessionStorage`, sehingga browser/tab siswa tidak mewarisi sesi Admin.
+- `roomState` mengirim `viewerRole` agar server menjadi sumber kebenaran role.
+- Event `questionStarted` membawa soal aman saat ini sehingga soal tetap tampil walaupun event diterima tidak berurutan.
+- Saat permainan dimulai/berpindah soal, tampilan Admin dan Siswa dipaksa masuk ke layar game.

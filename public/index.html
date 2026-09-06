@@ -182,8 +182,8 @@ h1{font-size:clamp(36px,7vw,76px);line-height:.95;margin:14px 0 10px;text-align:
 <script>
 const socket=io();
 let state=null, adminResults=null, role=null, codeNow="", teamId="", answeredLocal=false, timerInterval=null, timerQuestionIndex=null, editorQuestions=[], quizBank=[];
-let adminToken=localStorage.getItem("quiz_nusantara_admin_token")||"";
-let adminLogged=localStorage.getItem("quiz_nusantara_admin_logged")==="1";
+let adminToken=sessionStorage.getItem("quiz_nusantara_admin_token")||"";
+let adminLogged=sessionStorage.getItem("quiz_nusantara_admin_logged")==="1";
 const subjects=["GAME CAMPURAN","Bahasa Indonesia","Matematika","IPAS","Pendidikan Pancasila","Seni","PJOK"];
 const cls=document.getElementById("cls"), sub=document.getElementById("sub");
 ["SD 1","SD 2","SD 3","SD 4","SD 5","SD 6","SMP 7","SMP 8","SMP 9","SMA 10","SMA 11","SMA 12"].forEach(x=>cls.add(new Option(x,x)));
@@ -193,7 +193,15 @@ setupGoogleLogin();
 
 function el(id){return document.getElementById(id)}
 function hideAllMain(){["home","studentLogin","adminLogin","lobby","game","finish"].forEach(id=>el(id).classList.add("hidden"))}
-function showLogin(which){hideAllMain();el(which==="student"?"studentLogin":"adminLogin").classList.remove("hidden")}
+function showLogin(which){
+  if(which==="student"){
+    role="player";
+    // Never reuse an admin session when a student is opening the student screen.
+    adminToken=""; adminLogged=false;
+  }
+  hideAllMain();
+  el(which==="student"?"studentLogin":"adminLogin").classList.remove("hidden");
+}
 function backHome(){hideAllMain();el("home").classList.remove("hidden")}
 function showMsg(id,text,error=false){el(id).textContent=text;el(id).classList.toggle("error",error)}
 async function create(){
@@ -201,7 +209,7 @@ async function create(){
     role="teacher";
     socket.emit("adminAuth",{token:adminToken},res=>{
       if(!res?.ok)return showMsg("adminMsg",res?.message||"Sesi Google sudah kedaluwarsa. Silakan login Google lagi.",true);
-      socket.emit("createRoom",{className:cls.value,subject:sub.value,teacherName:localStorage.getItem("quiz_nusantara_admin_name")||"Admin",quizId:el("quizSelect").value});
+      socket.emit("createRoom",{className:cls.value,subject:sub.value,teacherName:sessionStorage.getItem("quiz_nusantara_admin_name")||"Admin",quizId:el("quizSelect").value});
     });
     return;
   }
@@ -241,10 +249,10 @@ async function handleGoogleCredential(response){
     const data=await r.json();
     if(!r.ok||!data.ok)throw new Error(data.message||"Login Google gagal.");
     adminToken=data.token; adminLogged=true;
-    localStorage.setItem("quiz_nusantara_admin_token",adminToken);
-    localStorage.setItem("quiz_nusantara_admin_logged","1");
-    localStorage.setItem("quiz_nusantara_admin_name",data.name||"Admin");
-    localStorage.setItem("quiz_nusantara_admin_email",data.email||"");
+    sessionStorage.setItem("quiz_nusantara_admin_token",adminToken);
+    sessionStorage.setItem("quiz_nusantara_admin_logged","1");
+    sessionStorage.setItem("quiz_nusantara_admin_name",data.name||"Admin");
+    sessionStorage.setItem("quiz_nusantara_admin_email",data.email||"");
     role="teacher";
     socket.emit("adminAuth",{token:adminToken},res=>{
       if(!res?.ok)return showMsg("googleStatus",res?.message||"Sesi admin gagal.",true);
@@ -257,7 +265,11 @@ async function handleGoogleCredential(response){
   }
 }
 
-function join(){role="player";socket.emit("joinRoom",{code:el("code").value.trim(),name:el("student").value.trim(),teamName:el("team").value.trim()})}
+function join(){
+  role="player";
+  adminToken=""; adminLogged=false;
+  socket.emit("joinRoom",{code:el("code").value.trim(),name:el("student").value.trim(),teamName:el("team").value.trim()});
+}
 function startGame(){
   if(role!=="teacher"||!codeNow){
     toast("Kontrol MULAI hanya dapat digunakan oleh admin pada room yang aktif.",true);
@@ -299,7 +311,7 @@ function runGenerator(){
   document.getElementById("generatorModal")?.remove();
   socket.emit("generateQuestions",payload);
 }
-function adminLogout(){localStorage.removeItem("quiz_nusantara_admin_token");localStorage.removeItem("quiz_nusantara_admin_logged");adminToken="";adminLogged=false;role=null;codeNow="";state=null;location.reload()}
+function adminLogout(){sessionStorage.removeItem("quiz_nusantara_admin_token");sessionStorage.removeItem("quiz_nusantara_admin_logged");adminToken="";adminLogged=false;role=null;codeNow="";state=null;location.reload()}
 function nextQuestion(){if(role==="teacher")socket.emit("nextQuestion",{code:codeNow})}
 function stopTimer(){if(timerInterval){clearInterval(timerInterval);timerInterval=null}}
 function formatTime(sec){sec=Math.max(0,Math.floor(sec));return String(Math.floor(sec/60)).padStart(2,"0")+":"+String(sec%60).padStart(2,"0")}
@@ -341,16 +353,16 @@ socket.on("connect",()=>{
     socket.emit("adminAuth",{token:adminToken},res=>{
       if(res?.ok){
         role="teacher";
-        const savedRoom=localStorage.getItem("quiz_nusantara_admin_room");
+        const savedRoom=sessionStorage.getItem("quiz_nusantara_admin_room");
         if(savedRoom)socket.emit("reconnectAdmin",{code:savedRoom,token:adminToken});
       }else{
-        localStorage.removeItem("quiz_nusantara_admin_token");localStorage.removeItem("quiz_nusantara_admin_logged");localStorage.removeItem("quiz_nusantara_admin_room");adminToken="";adminLogged=false;
+        sessionStorage.removeItem("quiz_nusantara_admin_token");sessionStorage.removeItem("quiz_nusantara_admin_logged");sessionStorage.removeItem("quiz_nusantara_admin_room");adminToken="";adminLogged=false;
       }
     });
   }
 });
 
-socket.on("created",x=>{codeNow=x.code;adminLogged=true;localStorage.setItem("quiz_nusantara_admin_logged","1");localStorage.setItem("quiz_nusantara_admin_room",codeNow);if(x.adminToken){adminToken=x.adminToken;localStorage.setItem("quiz_nusantara_admin_token",adminToken)}hideAllMain();el("lobby").classList.remove("hidden")});
+socket.on("created",x=>{codeNow=x.code;adminLogged=true;sessionStorage.setItem("quiz_nusantara_admin_logged","1");sessionStorage.setItem("quiz_nusantara_admin_room",codeNow);if(x.adminToken){adminToken=x.adminToken;sessionStorage.setItem("quiz_nusantara_admin_token",adminToken)}hideAllMain();el("lobby").classList.remove("hidden")});
 socket.on("joined",x=>{role="player";codeNow=x.code;teamId=x.teamId;hideAllMain();el("lobby").classList.remove("hidden")});
 socket.on("errorMsg",m=>{showMsg(role==="teacher"?"adminMsg":"studentMsg",m,true);toast(m,true)});
 socket.on("questionsSaved",x=>{toast(`Berhasil menyimpan ${x.count} soal.`);});
@@ -362,8 +374,26 @@ socket.on("quizDeleted",x=>{quizBank=x.quizzes||[];populateQuizSelect();renderQu
 socket.on("answerSaved",r=>{answeredLocal=true;el("studentWaiting").classList.remove("hidden");el("studentWaiting").textContent="✅ Jawaban tersimpan. Menunggu admin melanjutkan ke soal berikutnya.";renderQuestion();});
 socket.on("adminResults",r=>{adminResults=r;renderAdminResults();});
 socket.on("review",rows=>renderReview(rows));
-socket.on("questionStarted",x=>{answeredLocal=false;el("studentWaiting").classList.add("hidden");if(state){state.qIndex=x.qIndex;state.total=x.total;state.questionStartedAt=x.startedAt;}renderQuestion()});
-socket.on("roomState",s=>{state=s;renderRoom();if(s.status==="playing")renderQuestion();if(s.status==="finished")renderFinish()});
+socket.on("questionStarted",x=>{
+  answeredLocal=false;
+  el("studentWaiting").classList.add("hidden");
+  if(!state) state={code:codeNow,viewerRole:role,status:"playing",teams:[],subject:"",className:"",teacherName:"",qIndex:x.qIndex,total:x.total,questionStartedAt:x.startedAt,current:x.current||null};
+  state.qIndex=x.qIndex;
+  state.total=x.total;
+  state.questionStartedAt=x.startedAt;
+  if(x.current) state.current=x.current;
+  state.status="playing";
+  hideAllMain();
+  el("game").classList.remove("hidden");
+  renderQuestion();
+});
+socket.on("roomState",s=>{
+  state=s;
+  if(s.viewerRole) role=s.viewerRole;
+  renderRoom();
+  if(s.status==="playing") renderQuestion();
+  if(s.status==="finished") renderFinish();
+});
 
 function renderRoom(){
   if(!state)return;

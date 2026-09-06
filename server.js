@@ -16,7 +16,7 @@ app.get("/", (req, res) => {
   res.sendFile(path.join(process.cwd(), "public", "index.html"));
 });
 app.get("/health", (req, res) => {
-  res.json({ ok: true, app: "QUIZ NUSANTARA", version: "3.3.0" });
+  res.json({ ok: true, app: "QUIZ NUSANTARA", version: "3.4.0" });
 });
 
 app.use(express.json({ limit: "1mb" }));
@@ -452,6 +452,7 @@ function publicRoom(room, socketId) {
   const myTeam = viewer?.teamId ? room.teams.get(viewer.teamId) : null;
   return {
     code: room.code,
+    viewerRole: viewer?.role || null,
     className: room.className,
     subject: room.subject,
     teacherName: room.teacherName,
@@ -634,7 +635,7 @@ io.on("connection", socket => {
     for (const t of room.teams.values()) { t.score = 0; t.answers = {}; }
     emitRoom(room);
     emitAdmin(room);
-    io.to(room.code).emit("questionStarted", { qIndex: 0, total: room.questions.length, startedAt: room.questionStartedAt });
+    io.to(room.code).emit("questionStarted", { qIndex: 0, total: room.questions.length, startedAt: room.questionStartedAt, current: safeQuestion(room.questions[0]) });
     cb?.({ ok:true, qIndex:0, total:room.questions.length });
   });
 
@@ -765,7 +766,7 @@ io.on("connection", socket => {
       room.questionStartedAt = Date.now();
       emitRoom(room);
       emitAdmin(room);
-      io.to(room.code).emit("questionStarted", { qIndex: room.qIndex, total: room.questions.length, startedAt: room.questionStartedAt });
+      io.to(room.code).emit("questionStarted", { qIndex: room.qIndex, total: room.questions.length, startedAt: room.questionStartedAt, current: safeQuestion(room.questions[room.qIndex]) });
     } else {
       room.status = "finished";
       room.questionStartedAt = null;
@@ -838,6 +839,6 @@ const PORT = Number(process.env.PORT) || 3000;
   quizBank = await loadQuizBank();
   await ensureBuiltinQuizBank();
   server.listen(PORT, "0.0.0.0", () => {
-    console.log(`QUIZ NUSANTARA v3.3 running on 0.0.0.0:${PORT} | storage=${storageMode}`);
+    console.log(`QUIZ NUSANTARA v3.4 running on 0.0.0.0:${PORT} | storage=${storageMode}`);
   });
 })().catch(err => { console.error("Startup failed:", err); process.exit(1); });
