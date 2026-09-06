@@ -41,7 +41,7 @@ h1{font-size:clamp(36px,7vw,76px);line-height:.95;margin:14px 0 10px;text-align:
 .student-game-card{} .opt.answered{opacity:.72;cursor:not-allowed}.finish-btn{background:linear-gradient(135deg,#23c483,#0aa6a6)!important;box-shadow:0 10px 28px #0aa6a655}.studentWaiting{font-weight:800}
 
 /* v3.6 admin curriculum wizard */
-.quiz-setup{margin-top:18px;padding:18px;border:1px solid #ffffff18;border-radius:22px;background:linear-gradient(145deg,#ffffff09,#ffffff03);box-shadow:0 18px 45px #0003}.setup-progress{display:flex;align-items:center;max-width:260px;margin:0 auto 18px}.setup-progress span{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:#ffffff0c;border:1px solid #ffffff18;color:#91a2c9;font-weight:900}.setup-progress span.active{background:linear-gradient(135deg,#7c6cff,#00c8ff);color:#fff;border-color:transparent}.setup-progress i{height:2px;flex:1;background:#ffffff16}.setup-kicker{font-size:11px;font-weight:900;letter-spacing:1.5px;color:#8ca0cc;margin-bottom:4px}.quiz-setup h3{margin:0 0 5px;font-size:24px}.level-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:16px}.level-card{width:auto;min-height:145px;padding:18px;border:1px solid #ffffff16;border-radius:20px;background:linear-gradient(145deg,#17234c,#0d1735);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;transition:.2s}.level-card:hover{transform:translateY(-3px);border-color:#7c6cff77;box-shadow:0 14px 30px #0004}.level-card span{font-size:38px}.level-card strong{font-size:25px}.level-card small{color:#91a2c9}.setup-back{width:auto!important;padding:7px 11px!important;margin-bottom:12px!important}.setup-grid{margin-top:14px}.deep-learning-note{display:flex;gap:10px;align-items:flex-start;margin:14px 0;padding:12px 14px;border-radius:15px;background:#00c8ff0b;border:1px solid #00c8ff22}.deep-learning-note strong{white-space:nowrap}.deep-learning-note span{color:#aab8d8;font-size:12px;line-height:1.45}.source-toggle{display:flex;align-items:flex-start;gap:9px;padding:12px 14px;margin:12px 0;border:1px solid #ffffff12;border-radius:15px;background:#ffffff06;cursor:pointer}.source-toggle input{width:auto;margin-top:3px}.source-toggle strong{display:block}.source-toggle small{display:block;color:#91a2c9;margin-top:3px}@media(max-width:720px){.level-grid{grid-template-columns:1fr}.level-card{min-height:105px}.deep-learning-note{flex-direction:column}.quiz-setup{padding:14px}}
+.quiz-setup{margin-top:18px;padding:18px;border:1px solid #ffffff18;border-radius:22px;background:linear-gradient(145deg,#ffffff09,#ffffff03);box-shadow:0 18px 45px #0003}.setup-progress{display:flex;align-items:center;max-width:260px;margin:0 auto 18px}.setup-progress span{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:#ffffff0c;border:1px solid #ffffff18;color:#91a2c9;font-weight:900}.setup-progress span.active{background:linear-gradient(135deg,#7c6cff,#00c8ff);color:#fff;border-color:transparent}.setup-progress i{height:2px;flex:1;background:#ffffff16}.setup-kicker{font-size:11px;font-weight:900;letter-spacing:1.5px;color:#8ca0cc;margin-bottom:4px}.quiz-setup h3{margin:0 0 5px;font-size:24px}.level-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:16px}.level-card{width:auto;min-height:145px;padding:18px;border:1px solid #ffffff16;border-radius:20px;background:linear-gradient(145deg,#17234c,#0d1735);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;transition:.2s}.level-card:hover{transform:translateY(-3px);border-color:#7c6cff77;box-shadow:0 14px 30px #0004}.level-card span{font-size:38px}.level-card strong{font-size:25px}.level-card small{color:#91a2c9}.setup-back{width:auto!important;padding:7px 11px!important;margin-bottom:12px!important}.setup-grid{margin-top:14px}.deep-learning-note{display:flex;gap:10px;align-items:flex-start;margin:14px 0;padding:12px 14px;border-radius:15px;background:#00c8ff0b;border:1px solid #00c8ff22}.deep-learning-note strong{white-space:nowrap}.deep-learning-note span{color:#aab8d8;font-size:12px;line-height:1.45}.source-choice-wrap{margin:14px 0}.source-choice-title{font-weight:900;margin-bottom:8px}.source-toggle{display:flex;align-items:flex-start;gap:9px;padding:12px 14px;margin:8px 0;border:1px solid #ffffff12;border-radius:15px;background:#ffffff06;cursor:pointer;transition:.2s}.source-choice.active{border-color:#00c8ff66;background:#00c8ff0b;box-shadow:0 8px 22px #0002}.source-toggle input{width:auto;margin-top:3px}.source-toggle strong{display:block}.source-toggle small{display:block;color:#91a2c9;margin-top:3px}@media(max-width:720px){.level-grid{grid-template-columns:1fr}.level-card{min-height:105px}.deep-learning-note{flex-direction:column}.quiz-setup{padding:14px}}
 
 /* v3.8 logout/close-room + Tut Wuri identity */
 .quiz-logo{width:58px;height:58px;object-fit:contain;filter:drop-shadow(0 10px 22px #0006)}
@@ -136,8 +136,18 @@ window.addEventListener("DOMContentLoaded",()=>{
       </div>
       <div id="quizModeHint" class="deep-learning-note"><strong>👥 Mode TIM</strong><span>Setiap tim berkolaborasi menjawab soal. Satu jawaban mewakili tim dan skor dikumpulkan bersama.</span></div>
       <div class="deep-learning-note"><strong>🧠 Pembelajaran Mendalam</strong><span>Soal dirancang agar berkesadaran, bermakna, dan menyenangkan, dengan pengalaman belajar memahami → mengaplikasi → merefleksi.</span></div>
-      <label class="source-toggle"><input id="useAI" type="checkbox" checked> <span><strong>🌐 Gunakan Internet + AI (direkomendasikan)</strong><small id="aiHint">Memeriksa referensi pendidikan resmi sebelum menyusun soal.</small></span></label>
-      <button class="wide" onclick="createSelectedRoom()" id="createSelectedRoomBtn">🚀 BUAT ROOM & SOAL</button>
+      <div class="source-choice-wrap">
+        <div class="source-choice-title">⚙️ Sumber Pembuatan Soal</div>
+        <label class="source-toggle source-choice active" id="localSourceCard">
+          <input type="radio" name="mainSource" value="local" checked onchange="updateMainSource()">
+          <span><strong>⚡ Gunakan Lokal — cepat & tanpa API</strong><small>Generate soal langsung dari bank/generator bawaan aplikasi. Cocok untuk mulai bermain tanpa menunggu AI.</small></span>
+        </label>
+        <label class="source-toggle source-choice" id="onlineSourceCard">
+          <input id="useAI" type="radio" name="mainSource" value="online" onchange="updateMainSource()">
+          <span><strong>🌐 Gunakan Internet + AI</strong><small id="aiHint">Memeriksa referensi web pendidikan resmi sebelum menyusun soal.</small></span>
+        </label>
+      </div>
+      <button class="wide" onclick="createSelectedRoom()" id="createSelectedRoomBtn">⚡ GUNAKAN LOKAL & BUAT ROOM</button>
     </div>
   </div>
   <div id="adminMsg" class="notice"></div>
@@ -347,12 +357,19 @@ function updateQuizModeHint(){
   }
 }
 function quizModeLabel(mode){return mode==="individual"?"👤 PERORANG":"👥 TIM"}
+function updateMainSource(){
+  const source=document.querySelector('input[name="mainSource"]:checked')?.value||"local";
+  document.getElementById("localSourceCard")?.classList.toggle("active",source==="local");
+  document.getElementById("onlineSourceCard")?.classList.toggle("active",source==="online");
+  const btn=el("createSelectedRoomBtn");
+  if(btn && !btn.disabled) btn.textContent=source==="local"?"⚡ GUNAKAN LOKAL & BUAT ROOM":"🌐 GUNAKAN INTERNET + AI & BUAT ROOM";
+}
 
 function createSelectedRoom(){
   if(!adminLogged||!adminToken)return showMsg("adminMsg","Sesi Admin belum aktif.",true);
   if(!selectedLevel)return showMsg("adminMsg","Pilih jenjang terlebih dahulu.",true);
   const btn=el("createSelectedRoomBtn"); btn.disabled=true; btn.textContent="⏳ Menyiapkan room & soal...";
-  const source=el("useAI").checked?"online":"local";
+  const source=document.querySelector('input[name="mainSource"]:checked')?.value||"local";
   role="teacher";
   socket.emit("adminAuth",{token:adminToken},res=>{
     if(!res?.ok){btn.disabled=false;btn.textContent="🚀 BUAT ROOM & SOAL";return showMsg("adminMsg",res?.message||"Sesi Admin kedaluwarsa.",true);}
@@ -364,9 +381,10 @@ function createSelectedRoom(){
 
 async function refreshAIHint(){
   try{const r=await fetch("/api/ai-status");const x=await r.json();const cb=el("useAI"), hint=el("aiHint");
-    if(!x.enabled){cb.checked=false;cb.disabled=true;hint.textContent="OPENAI_API_KEY belum diatur di Railway. Soal tetap dapat dibuat dengan generator lokal.";}
-    else {cb.disabled=false;hint.textContent=`AI aktif (${x.model}) dan akan memeriksa referensi web pendidikan resmi sebelum menyusun soal.`;}
-  }catch(_){el("useAI").checked=false;el("useAI").disabled=true;el("aiHint").textContent="Status AI belum dapat diperiksa; gunakan generator lokal jika diperlukan.";}
+    if(!x.enabled){cb.disabled=true;hint.textContent="OPENAI_API_KEY belum diatur di Railway. Generator lokal tetap siap digunakan.";}
+    else {cb.disabled=false;hint.textContent=`AI aktif (${x.model}) dan akan memeriksa referensi web pendidikan resmi sebelum menyusun soal. Jika terkena rate limit, room otomatis beralih ke lokal.`;}
+    updateMainSource();
+  }catch(_){el("useAI").disabled=true;el("aiHint").textContent="Status AI belum dapat diperiksa. Generator lokal tetap dapat digunakan.";updateMainSource();}
 }
 async function setupGoogleLogin(){
   try{
