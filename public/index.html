@@ -93,7 +93,7 @@ h1{font-size:clamp(36px,7vw,76px);line-height:.95;margin:14px 0 10px;text-align:
   <div class="grid">
     <div><label>Kode Room</label><input id="code" placeholder="Contoh: ABCDE"></div>
     <div><label>Nama Siswa</label><input id="student" placeholder="Nama kamu"></div>
-    <div><label>Nama Tim</label><input id="team" placeholder="Contoh: Garuda"></div>
+    <div id="teamField"><label>Nama Tim <span class="subtle">(untuk kuis TIM)</span></label><input id="team" placeholder="Contoh: Garuda — boleh dikosongkan untuk kuis perorang"></div>
   </div><br><button onclick="join()">MASUK KE ROOM</button><div id="studentMsg" class="notice"></div>
 </section>
 
@@ -122,11 +122,13 @@ h1{font-size:clamp(36px,7vw,76px);line-height:.95;margin:14px 0 10px;text-align:
       <h3 id="chosenLevelTitle">🎯 Detail Kuis</h3>
       <p class="subtle">Pilih kelas, mata pelajaran, dan tingkat kesulitan. Generator AI akan menyusun soal yang selaras dengan Kurikulum Merdeka dan Pembelajaran Mendalam.</p>
       <div class="grid setup-grid">
+        <div><label>Tipe Kuis</label><select id="quizMode" onchange="updateQuizModeHint()"><option value="team" selected>👥 Kuis TIM — bermain dan meraih skor bersama</option><option value="individual">👤 Kuis PERORANG — setiap siswa bermain dan dinilai secara mandiri</option></select></div>
         <div><label>Kelas</label><select id="cls"></select></div>
         <div><label>Mata Pelajaran</label><select id="sub"></select></div>
         <div><label>Kesulitan Soal</label><select id="difficulty"><option value="mudah">🟢 Mudah — memahami & menerapkan sederhana</option><option value="sedang" selected>🟡 Sedang — menerapkan & menganalisis</option><option value="sulit">🔴 Sulit — menganalisis, mengevaluasi & memecahkan masalah</option></select></div>
         <div><label>Jumlah Soal</label><select id="questionCount"><option value="20">20 soal</option><option value="30" selected>30 soal</option><option value="50">50 soal</option><option value="100">100 soal</option></select></div>
       </div>
+      <div id="quizModeHint" class="deep-learning-note"><strong>👥 Mode TIM</strong><span>Setiap tim berkolaborasi menjawab soal. Satu jawaban mewakili tim dan skor dikumpulkan bersama.</span></div>
       <div class="deep-learning-note"><strong>🧠 Pembelajaran Mendalam</strong><span>Soal dirancang agar berkesadaran, bermakna, dan menyenangkan, dengan pengalaman belajar memahami → mengaplikasi → merefleksi.</span></div>
       <label class="source-toggle"><input id="useAI" type="checkbox" checked> <span><strong>🌐 Gunakan Internet + AI (direkomendasikan)</strong><small id="aiHint">Memeriksa referensi pendidikan resmi sebelum menyusun soal.</small></span></label>
       <button class="wide" onclick="createSelectedRoom()" id="createSelectedRoomBtn">🚀 BUAT ROOM & SOAL</button>
@@ -155,7 +157,7 @@ h1{font-size:clamp(36px,7vw,76px);line-height:.95;margin:14px 0 10px;text-align:
       </div>
 
       <div class="dash-grid">
-        <div class="dash-stat"><div class="label">👥 TOTAL TIM</div><div id="statTeams" class="value">0</div><div class="hint">Tim yang sudah bergabung</div></div>
+        <div class="dash-stat"><div class="label" id="statGroupsLabel">👥 TOTAL TIM</div><div id="statTeams" class="value">0</div><div class="hint" id="statGroupsHint">Tim yang sudah bergabung</div></div>
         <div class="dash-stat"><div class="label">🎓 PESERTA</div><div id="statStudents" class="value">0</div><div class="hint">Siswa aktif di room</div></div>
         <div class="dash-stat"><div class="label">📝 JUMLAH SOAL</div><div id="statQuestions" class="value">0</div><div class="hint">Soal untuk sesi ini</div></div>
         <div class="dash-stat"><div class="label">🎯 STATUS</div><div id="statStatus" class="value" style="font-size:22px">SIAP</div><div class="hint">Status permainan</div></div>
@@ -183,11 +185,11 @@ h1{font-size:clamp(36px,7vw,76px);line-height:.95;margin:14px 0 10px;text-align:
 </div>
 
 <div id="tab-teams" class="tab-panel hidden">
-        <div class="dashboard-card"><div class="admin-title"><div><h3 style="margin:0">👥 Peserta & Tim</h3><div class="subtle">Pantau siapa saja yang sudah bergabung.</div></div><span class="pill" id="participantCountBadge">0 peserta</span></div><div id="adminTeamList"></div></div>
+        <div class="dashboard-card"><div class="admin-title"><div><h3 id="participantsPanelTitle">👥 Peserta & Tim</h3><div class="subtle">Pantau siapa saja yang sudah bergabung.</div></div><span class="pill" id="participantCountBadge">0 peserta</span></div><div id="adminTeamList"></div></div>
       </div>
 
       <div id="tab-settings" class="tab-panel hidden">
-        <div class="dashboard-card"><h3>⚙️ Pengaturan Room</h3><p class="subtle">Informasi sesi yang digunakan saat room dibuat.</p><div class="settings-grid"><div><label>Nama Admin / Guru</label><input id="setTeacher" class="readonly" readonly></div><div><label>Jenjang & Kelas</label><input id="setClass" class="readonly" readonly></div><div><label>Mata Pelajaran</label><input id="setSubject" class="readonly" readonly></div><div><label>Kode Room</label><input id="setRoom" class="readonly" readonly></div></div><div class="dashboard-card" style="margin-top:14px"><h3>💡 Tips</h3><p class="subtle">Bagikan kode room melalui layar kelas. Admin tetap menjadi pengendali perpindahan soal.</p></div></div>
+        <div class="dashboard-card"><h3>⚙️ Pengaturan Room</h3><p class="subtle">Informasi sesi yang digunakan saat room dibuat.</p><div class="settings-grid"><div><label>Nama Admin / Guru</label><input id="setTeacher" class="readonly" readonly></div><div><label>Jenjang & Kelas</label><input id="setClass" class="readonly" readonly></div><div><label>Mata Pelajaran</label><input id="setSubject" class="readonly" readonly></div><div><label>Tipe Kuis</label><input id="setMode" class="readonly" readonly></div><div><label>Kode Room</label><input id="setRoom" class="readonly" readonly></div></div><div class="dashboard-card" style="margin-top:14px"><h3>💡 Tips</h3><p class="subtle">Bagikan kode room melalui layar kelas. Admin tetap menjadi pengendali perpindahan soal.</p></div></div>
       </div>
     </main>
   </div>
@@ -249,11 +251,11 @@ h1{font-size:clamp(36px,7vw,76px);line-height:.95;margin:14px 0 10px;text-align:
   </div>
   <div id="adminFinish" class="card hidden">
     <div class="finish-title">🏆 HASIL AKHIR</div>
-    <p class="tag">Admin dapat melihat seluruh soal, kunci, jawaban tiap kelompok, dan siswa yang mengirim jawaban.</p>
+    <p class="tag" id="finishDescription">Admin dapat melihat seluruh soal, kunci, jawaban peserta, dan status benar/salah.</p>
     <div id="final"></div>
     <div id="studentAnswerSummary"></div>
-    <div class="admin-panel"><h2>📝 Rekap Jawaban Semua Tim</h2><div id="allResults" class="scroll"></div></div>
-    <div class="admin-panel"><h2>🔎 Review Per Tim</h2><div class="grid"><select id="reviewTeam"></select><button onclick="review()">LIHAT REVIEW TIM</button></div><div id="review" class="scroll"></div></div>
+    <div class="admin-panel"><h2 id="allResultsTitle">📝 Rekap Jawaban Semua Tim</h2><div id="allResults" class="scroll"></div></div>
+    <div class="admin-panel"><h2 id="reviewTitle">🔎 Review Per Tim</h2><div class="grid"><select id="reviewTeam"></select><button id="reviewBtn" onclick="review()">LIHAT REVIEW TIM</button></div><div id="review" class="scroll"></div></div>
     <div class="room-actions" style="margin-top:20px;justify-content:flex-start;flex-wrap:wrap">
       <button class="close-room-btn" onclick="closeRoom()">⛔ TUTUP ROOM</button>
       <button class="alt" onclick="location.reload()">BUAT / GABUNG ROOM LAIN</button>
@@ -323,6 +325,17 @@ function showAdminSetup(){
   el("setupStep1").classList.add("active"); el("setupStep2").classList.remove("active");
   selectedLevel="";
 }
+function updateQuizModeHint(){
+  const mode=el("quizMode")?.value||"team";
+  const box=el("quizModeHint");
+  if(box){
+    box.innerHTML=mode==="individual"
+      ? '<strong>👤 Mode PERORANG</strong><span>Setiap siswa mengerjakan secara mandiri. Nilai dan jawaban dihitung untuk masing-masing siswa, bukan digabung dalam tim.</span>'
+      : '<strong>👥 Mode TIM</strong><span>Setiap tim berkolaborasi menjawab soal. Satu jawaban mewakili tim dan skor dikumpulkan bersama.</span>';
+  }
+}
+function quizModeLabel(mode){return mode==="individual"?"👤 PERORANG":"👥 TIM"}
+
 function createSelectedRoom(){
   if(!adminLogged||!adminToken)return showMsg("adminMsg","Sesi Admin belum aktif.",true);
   if(!selectedLevel)return showMsg("adminMsg","Pilih jenjang terlebih dahulu.",true);
@@ -331,7 +344,7 @@ function createSelectedRoom(){
   role="teacher";
   socket.emit("adminAuth",{token:adminToken},res=>{
     if(!res?.ok){btn.disabled=false;btn.textContent="🚀 BUAT ROOM & SOAL";return showMsg("adminMsg",res?.message||"Sesi Admin kedaluwarsa.",true);}
-    socket.emit("createRoom",{className:cls.value,subject:sub.value,teacherName:sessionStorage.getItem("quiz_nusantara_admin_name")||"Admin",quizId:"",difficulty:el("difficulty").value,count:Number(el("questionCount").value),source},ack=>{
+    socket.emit("createRoom",{className:cls.value,subject:sub.value,teacherName:sessionStorage.getItem("quiz_nusantara_admin_name")||"Admin",quizId:"",quizMode:el("quizMode").value,difficulty:el("difficulty").value,count:Number(el("questionCount").value),source},ack=>{
       if(ack?.ok){showMsg("adminMsg","Room dibuat. Soal sedang disiapkan...",false);}else{btn.disabled=false;btn.textContent="🚀 BUAT ROOM & SOAL";showMsg("adminMsg",ack?.message||"Gagal membuat room.",true);}
     });
   });
@@ -403,7 +416,7 @@ function join(){
   sessionStorage.setItem("quiz_nusantara_player_room",playerRoom);
   sessionStorage.setItem("quiz_nusantara_player_name",playerName);
   sessionStorage.removeItem("quiz_nusantara_player_team");
-  socket.emit("joinRoom",{code:playerRoom,name:playerName,teamName:el("team").value.trim()});
+  socket.emit("joinRoom",{code:playerRoom,name:playerName,teamName:el("team")?.value.trim()||""});
 }
 function startGame(){
   if(role!=="teacher"||!codeNow){
@@ -592,7 +605,7 @@ socket.on("roomState",s=>{
 function renderRoom(){
   if(!state)return;
   el("roomcode").textContent=state.code;
-  el("meta").innerHTML=`<span class="pill">${escapeHtml(state.className)}</span><span class="pill">${escapeHtml(state.subject)}</span>`;
+  el("meta").innerHTML=`<span class="pill">${escapeHtml(state.className)}</span><span class="pill">${escapeHtml(state.subject)}</span><span class="pill">${quizModeLabel(state.quizMode)}</span>`;
   el("teams").innerHTML=state.teams.length?state.teams.map(t=>`<div class="team"><b>${escapeHtml(t.name)}</b><br>${t.members.length}/10 siswa<br><span class="small">${t.members.map(escapeHtml).join(", ")||"Belum ada anggota"}</span><div class="team-score">${t.score} poin</div></div>`).join(""):"<div class='small'>Belum ada tim.</div>";
   const isPlayer=appMode==="player" || role==="player";
   const isTeacher=!isPlayer && (appMode==="teacher" || role==="teacher");
@@ -605,10 +618,15 @@ function renderRoom(){
   if(adminSidebar) adminSidebar.classList.toggle("hidden",!isTeacher||state.status!=="lobby");
   el("studentLobbyArea").classList.toggle("hidden",!isPlayer||state.status!=="lobby");
   el("studentLobbyWaiting").classList.toggle("hidden",!isPlayer||state.status!=="lobby");
+  if(isPlayer){ const tf=el("teamField"); if(tf) tf.classList.toggle("hidden",state.quizMode==="individual"); }
   el("adminDashboard").classList.toggle("hidden",!isTeacher);
   if(role==="teacher"&&state.status==="lobby"){
     const students=state.teams.reduce((n,t)=>n+t.members.length,0);
     el("statTeams").textContent=state.teams.length;
+    const individual=state.quizMode==="individual";
+    el("statGroupsLabel").textContent=individual?"👤 TOTAL SISWA":"👥 TOTAL TIM";
+    el("statGroupsHint").textContent=individual?"Siswa yang sudah bergabung":"Tim yang sudah bergabung";
+    el("participantsPanelTitle").textContent=individual?"👤 Peserta Perorang":"👥 Peserta & Tim";
     el("statStudents").textContent=students;
     el("statQuestions").textContent=state.total;
     el("statStatus").textContent="SIAP";
@@ -617,15 +635,16 @@ function renderRoom(){
     el("dashClass").textContent=state.className;
     el("dashSubject").textContent=state.subject;
     el("dashTeacher").textContent=state.teacherName;
+    el("setMode").value=state.quizMode==="individual"?"👤 Kuis PERORANG":"👥 Kuis TIM";
     el("setTeacher").value=state.teacherName;
     el("setClass").value=state.className;
     el("setSubject").value=state.subject;
     el("setRoom").value=state.code;
     el("participantCountBadge").textContent=`${students} peserta`;
-    const pct=Math.min(100,(state.teams.length/3)*100);
+    const pct=state.quizMode==="individual"?Math.min(100,(students/10)*100):Math.min(100,(state.teams.length/3)*100);
     el("teamProgress").style.width=pct+"%";
-    el("readinessText").textContent=students?`${students} siswa dalam ${state.teams.length} tim siap mengikuti kuis.`:"Belum ada peserta. Bagikan kode room.";
-    el("adminTeamList").innerHTML=state.teams.length?state.teams.map(t=>`<div class="participant-card"><div><b>${escapeHtml(t.name)}</b><div class="subtle">${t.members.map(escapeHtml).join(", ")||"Belum ada anggota"}</div></div><span>${t.members.length}/10</span><span class="badge-good">AKTIF</span></div>`).join(""):"<div class='empty'>Belum ada siswa yang bergabung.</div>";
+    el("readinessText").textContent=students?(state.quizMode==="individual"?`${students} siswa siap mengikuti kuis perorang.`:`${students} siswa dalam ${state.teams.length} tim siap mengikuti kuis.`):"Belum ada peserta. Bagikan kode room.";
+    el("adminTeamList").innerHTML=state.teams.length?state.teams.map(t=>`<div class="participant-card"><div><b>${escapeHtml(t.name)}</b><div class="subtle">${t.members.map(escapeHtml).join(", ")||"Belum ada anggota"}</div></div><span>${state.quizMode==="individual"?"1 siswa":`${t.members.length}/10`}</span><span class="badge-good">AKTIF</span></div>`).join(""):"<div class='empty'>Belum ada siswa yang bergabung.</div>";
     el("overviewParticipants").innerHTML=state.teams.length?state.teams.slice(0,5).map(t=>`<div class="status-item"><span><b>${escapeHtml(t.name)}</b></span><span>${t.members.length} siswa</span></div>`).join(""):"<div class='empty'>Belum ada peserta.</div>";
     if(!editorQuestions.length)resetQuestionEditor();
   }
@@ -690,7 +709,7 @@ function renderQuestion(){
     el("q").textContent=q.q;
     el("opts").innerHTML=(q.opts||[]).map((opt,i)=>`<button class="opt ${teamAnswered?"answered":""}" onclick="answer(${i})" ${teamAnswered?"disabled":""}><b>${String.fromCharCode(65+i)}.</b> ${escapeHtml(opt)}</button>`).join("");
     el("opts").classList.remove("hidden");
-    el("studentWaiting").textContent=teamAnswered?"✅ Jawaban tim sudah tersimpan. Tunggu guru melanjutkan ke soal berikutnya.":"Pilih satu jawaban. Jawaban akan dihitung sebagai jawaban tim.";
+    el("studentWaiting").textContent=teamAnswered?(state.quizMode==="individual"?"✅ Jawabanmu sudah tersimpan. Tunggu guru melanjutkan ke soal berikutnya.":"✅ Jawaban tim sudah tersimpan. Tunggu guru melanjutkan ke soal berikutnya."):(state.quizMode==="individual"?"Pilih satu jawaban. Jawabanmu akan dinilai secara mandiri.":"Pilih satu jawaban. Jawaban akan dihitung sebagai jawaban tim.");
   }
 }
 
@@ -699,7 +718,7 @@ function renderAdminResults(){
   const rows=adminResults.rows||[];
   const answeredCount=rows.filter(r=>r.answered).length;
   if(el("liveAnswered"))el("liveAnswered").textContent=`${answeredCount}/${rows.length}`;
-  el("adminCurrentResults").innerHTML=`<h3>Soal ${adminResults.qIndex+1} — Hasil Jawaban Tim</h3><div class="scroll"><table class="result-table"><tr><th>Tim</th><th>Jawaban</th><th>Dijawab oleh</th><th>Kunci</th><th>Hasil</th><th>Poin</th></tr>${rows.map(r=>`<tr><td><b>${escapeHtml(r.teamName)}</b></td><td>${escapeHtml(r.choice)}</td><td>${escapeHtml(r.submittedBy||"-")}</td><td>${escapeHtml(r.correctAnswer)}</td><td class="${r.result==='BENAR'?'good':r.result==='BELUM MENJAWAB'?'pending':'bad'}">${r.result}</td><td><b>${r.points}</b></td></tr>`).join("")}</table></div>`;
+  el("adminCurrentResults").innerHTML=`<h3>Soal ${adminResults.qIndex+1} — Hasil Jawaban ${state?.quizMode==="individual"?"Siswa":"Tim"}</h3><div class="scroll"><table class="result-table"><tr><th>Tim</th><th>Jawaban</th><th>Dijawab oleh</th><th>Kunci</th><th>Hasil</th><th>Poin</th></tr>${rows.map(r=>`<tr><td><b>${escapeHtml(r.teamName)}</b></td><td>${escapeHtml(r.choice)}</td><td>${escapeHtml(r.submittedBy||"-")}</td><td>${escapeHtml(r.correctAnswer)}</td><td class="${r.result==='BENAR'?'good':r.result==='BELUM MENJAWAB'?'pending':'bad'}">${r.result}</td><td><b>${r.points}</b></td></tr>`).join("")}</table></div>`;
   el("leader").innerHTML=[...state.teams].sort((a,b)=>b.score-a.score).map(t=>`<li><span>${escapeHtml(t.name)}</span><b>${t.score} poin</b></li>`).join("");
 }
 
@@ -708,7 +727,8 @@ function renderStudentSummary(){
   if(!box||!state)return;
   const rows=[];
   (state.teams||[]).forEach(t=>(t.members||[]).forEach(name=>rows.push({name,team:t.name})));
-  box.innerHTML=rows.length?`<div class="dashboard-card"><h3>👥 Daftar Siswa & Kelompok</h3><div class="scroll"><table class="result-table"><tr><th>Siswa</th><th>Kelompok</th></tr>${rows.map(r=>`<tr><td>${escapeHtml(r.name)}</td><td>${escapeHtml(r.team)}</td></tr>`).join("")}</table></div></div>`:"";
+  const individual=state.quizMode==="individual";
+  box.innerHTML=rows.length?`<div class="dashboard-card"><h3>${individual?"👤 Daftar Peserta":"👥 Daftar Siswa & Kelompok"}</h3><div class="scroll"><table class="result-table"><tr><th>Siswa</th><th>${individual?"Mode":"Kelompok"}</th></tr>${rows.map(r=>`<tr><td>${escapeHtml(r.name)}</td><td>${individual?"PERORANG":escapeHtml(r.team)}</td></tr>`).join("")}</table></div></div>`:"";
 }
 
 function renderFinish(){
@@ -717,9 +737,14 @@ function renderFinish(){
   if(role==="player"){el("studentFinish").classList.remove("hidden");el("adminFinish").classList.add("hidden");return}
   el("adminFinish").classList.remove("hidden");el("studentFinish").classList.add("hidden");
   el("final").innerHTML=`<ol class="leader">${[...state.teams].sort((a,b)=>b.score-a.score).map(t=>`<li><span>${escapeHtml(t.name)} (${t.members.length} siswa)</span><b>${t.score} poin</b></li>`).join("")}</ol>`;
+  const individual=state.quizMode==="individual";
+  if(el("finishDescription"))el("finishDescription").textContent=individual?"Admin dapat melihat hasil setiap siswa, seluruh soal, kunci jawaban, serta status BENAR/SALAH.":"Admin dapat melihat seluruh soal, kunci, jawaban tiap tim, siswa yang mengirim jawaban, serta status BENAR/SALAH.";
+  if(el("allResultsTitle"))el("allResultsTitle").textContent=individual?"📝 Rekap Jawaban Semua Siswa":"📝 Rekap Jawaban Semua Tim";
+  if(el("reviewTitle"))el("reviewTitle").textContent=individual?"🔎 Review Per Siswa":"🔎 Review Per Tim";
   renderStudentSummary();
   if(adminResults)renderAllResults(adminResults.allQuestions||[]);
   el("reviewTeam").innerHTML=state.teams.map(t=>`<option value="${t.id}">${escapeHtml(t.name)}</option>`).join("");
+  if(el("reviewBtn"))el("reviewBtn").textContent=state.quizMode==="individual"?"LIHAT REVIEW SISWA":"LIHAT REVIEW TIM";
 }
 
 function renderAllResults(all){

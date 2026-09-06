@@ -16,7 +16,7 @@ app.get("/", (req, res) => {
   res.sendFile(path.join(process.cwd(), "public", "index.html"));
 });
 app.get("/health", (req, res) => {
-  res.json({ ok: true, app: "QUIZ NUSANTARA", version: "3.16.0" });
+  res.json({ ok: true, app: "QUIZ NUSANTARA", version: "3.17.0" });
 });
 
 app.use(express.json({ limit: "1mb" }));
@@ -461,6 +461,7 @@ function publicRoom(room, socketId) {
     className: room.className,
     subject: room.subject,
     difficulty: room.difficulty || "sedang",
+    quizMode: room.quizMode || "team",
     questionSource: room.questionSource || "local",
     teacherName: room.teacherName,
     status: room.status,
@@ -557,17 +558,18 @@ io.on("connection", socket => {
     socket.emit("created", { code:room.code, restored:true });
     emitRoom(room); emitAdmin(room);
   });
-  socket.on("createRoom", async ({ className, subject, teacherName, quizId, difficulty, source, count }, ack) => {
+  socket.on("createRoom", async ({ className, subject, teacherName, quizId, quizMode, difficulty, source, count }, ack) => {
     if (!socket.data.admin) { socket.emit("errorMsg", "Admin wajib login terlebih dahulu."); return ack?.({ok:false,message:"Admin wajib login terlebih dahulu."}); }
     let code;
     do { code = Math.random().toString(36).slice(2, 7).toUpperCase(); } while (rooms.has(code));
     const finalClass = String(className || "SD 1").trim();
     const finalSubject = String(subject || "GAME CAMPURAN").trim();
     const finalDifficulty = String(difficulty || "sedang").trim().toLowerCase();
+    const finalQuizMode = String(quizMode || "team").trim().toLowerCase()==="individual" ? "individual" : "team";
     const finalCount = Math.min(100, Math.max(5, Number(count) || 30));
     const mode = String(source || (OPENAI_API_KEY ? "online" : "local")).toLowerCase();
     const room = {
-      code, className: finalClass, subject: finalSubject, difficulty: finalDifficulty, questionSource: mode,
+      code, className: finalClass, subject: finalSubject, difficulty: finalDifficulty, quizMode: finalQuizMode, questionSource: mode,
       teacherName: String(teacherName || "Admin").trim() || "Admin", status: "lobby", qIndex: 0,
       quizId: String(quizId || "").trim(), questions: [], teams: new Map(), sockets: new Map(),
       questionStartedAt: null, adminToken: null, adminEmail: socket.data.adminEmail || ""
@@ -595,7 +597,7 @@ io.on("connection", socket => {
       room.status = "lobby";
       room.qIndex = 0; room.questionStartedAt = null;
       emitRoom(room); emitAdmin(room);
-      socket.emit("roomReady", { code, count: questions.length, className: finalClass, subject: finalSubject, difficulty: finalDifficulty, source: mode });
+      socket.emit("roomReady", { code, count: questions.length, className: finalClass, subject: finalSubject, difficulty: finalDifficulty, quizMode: finalQuizMode, source: mode });
     } catch (err) {
       console.error("createRoom question generation error:", err);
       room.questions = generatedQuestions(finalClass, finalSubject, Math.min(30, finalCount), finalDifficulty);
@@ -609,18 +611,32 @@ io.on("connection", socket => {
     if (!room) return socket.emit("errorMsg", "Kode room tidak ditemukan.");
     if (room.status !== "lobby") return socket.emit("errorMsg", "Permainan sudah dimulai. Tunggu room baru dari admin.");
 
-    let team = [...room.teams.values()].find(t => t.name.toLowerCase() === String(teamName || "").trim().toLowerCase());
-    if (!team) {
-      if (room.teams.size >= 12) return socket.emit("errorMsg", "Maksimal 12 tim.");
-      team = { id: "t" + (room.teams.size + 1), name: String(teamName || "Tim " + (room.teams.size + 1)).trim(), score: 0, members: [], answers: {} };
+    const studentName = String(name || "Siswa").trim() || "Siswa";
+    let team;
+    if (room.quizMode === "individual") {
+      // Mode perorang: setiap siswa menjadi peserta mandiri dengan skor/jawaban sendiri.
+      if (room.teams.size >= 100) return socket.emit("errorMsg", "Maksimal 100 siswa untuk kuis perorang.");
+      const baseName = studentName;
+      let displayName = baseName;
+      let n = 2;
+      while ([...room.teams.values()].some(t => t.name.toLowerCase() === displayName.toLowerCase())) displayName = `${baseName} (${n++})`;
+      team = { id: "p" + crypto.randomBytes(5).toString("hex"), name: displayName, score: 0, members: [], answers: {}, individual: true };
       room.teams.set(team.id, team);
+    } else {
+      let chosenTeamName = String(teamName || "").trim() || `Tim ${room.teams.size + 1}`;
+      team = [...room.teams.values()].find(t => t.name.toLowerCase() === chosenTeamName.toLowerCase());
+      if (!team) {
+        if (room.teams.size >= 12) return socket.emit("errorMsg", "Maksimal 12 tim.");
+        team = { id: "t" + (room.teams.size + 1), name: chosenTeamName, score: 0, members: [], answers: {} };
+        room.teams.set(team.id, team);
+      }
+      if (team.members.length >= 10) return socket.emit("errorMsg", "Tim ini sudah penuh (maksimal 10 siswa).");
     }
-    if (team.members.length >= 10) return socket.emit("errorMsg", "Tim ini sudah penuh (maksimal 10 siswa).");
 
-    team.members.push({ id: socket.id, name: String(name || "Siswa").trim() || "Siswa" });
-    room.sockets.set(socket.id, { role: "player", teamId: team.id, name: String(name || "Siswa").trim() || "Siswa" });
+    team.members.push({ id: socket.id, name: studentName });
+    room.sockets.set(socket.id, { role: "player", teamId: team.id, name: studentName });
     socket.join(room.code);
-    socket.emit("joined", { code: room.code, teamId: team.id });
+    socket.emit("joined", { code: room.code, teamId: team.id, quizMode: room.quizMode });
     emitRoom(room);
     emitAdmin(room);
   });
@@ -633,25 +649,19 @@ io.on("connection", socket => {
     if (!room) return socket.emit("errorMsg", "Room tidak ditemukan lagi. Silakan masuk ke room baru.");
     const tid = String(teamId || "");
     const team = room.teams.get(tid);
-    if (!team) return socket.emit("errorMsg", "Tim sebelumnya tidak ditemukan. Silakan bergabung kembali.");
+    if (!team) return socket.emit("errorMsg", "Peserta sebelumnya tidak ditemukan. Silakan bergabung kembali.");
 
-    // Remove any stale member entry for this student name and bind the new socket.
     const studentName = String(name || "Siswa").trim() || "Siswa";
     team.members = team.members.filter(m => String(m.name).toLowerCase() !== studentName.toLowerCase());
-    if (team.members.length >= 10) return socket.emit("errorMsg", "Tim ini sudah penuh (maksimal 10 siswa).");
+    if (room.quizMode !== "individual" && team.members.length >= 10) return socket.emit("errorMsg", "Tim ini sudah penuh (maksimal 10 siswa).");
     team.members.push({ id: socket.id, name: studentName });
-    room.sockets.set(socket.id, { role:"player", teamId: team.id, name: studentName });
+    room.sockets.set(socket.id, { role:"player", teamId: team.id, name:studentName });
     socket.join(room.code);
-    socket.emit("joined", { code: room.code, teamId: team.id, restored:true });
+    socket.emit("joined", { code: room.code, teamId: team.id, restored:true, quizMode:room.quizMode });
     emitRoom(room);
     emitAdmin(room);
     if (room.status === "playing") {
-      socket.emit("questionStarted", {
-        qIndex: room.qIndex,
-        total: room.questions.length,
-        startedAt: room.questionStartedAt,
-        current: safeQuestion(room.questions[room.qIndex])
-      });
+      socket.emit("questionStarted", { qIndex: room.qIndex, total: room.questions.length, startedAt: room.questionStartedAt, current: safeQuestion(room.questions[room.qIndex]) });
     }
   });
 

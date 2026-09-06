@@ -201,3 +201,10 @@ Default port: `3000`.
 - Dedicated student dashboard after joining a room.
 - Student browser mode is isolated from stale teacher session/roomState events.
 - Student lobby shows a polished “Silakan Menunggu” screen.
+
+
+## v3.17 — Mode Kuis TIM & PERORANG
+- Admin dapat memilih tipe kuis: Kuis TIM atau Kuis PERORANG.
+- Mode PERORANG membuat setiap siswa memiliki skor dan jawaban mandiri.
+- Mode TIM mempertahankan mekanisme kolaborasi dan satu jawaban per tim.
+- Rekap Admin menyesuaikan label Tim/Siswa secara otomatis.
