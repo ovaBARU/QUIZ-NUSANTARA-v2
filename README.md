@@ -1,4 +1,4 @@
-# QUIZ NUSANTARA v3.26 — CLASS-SPLIT 72.000 SOAL
+# QUIZ NUSANTARA v3.27 — CLASS-SPLIT 72.000 SOAL
 
 Versi ini memecah bank 72.000 soal menjadi 12 file JSON per kelas agar tidak ada satu file yang mendekati batas upload GitHub Web. Server otomatis membaca semua `data/quiz-bank/bank-XX.json` dan menggabungkannya saat startup.
 
@@ -245,3 +245,9 @@ Default port: `3000`.
 - Jika AI terkena rate limit, QUIZ NUSANTARA otomatis beralih ke generator lokal tanpa menggagalkan pembuatan soal/room.
 - Admin mendapat notifikasi bahwa generator lokal sedang digunakan.
 - API key OpenAI tetap disimpan hanya di Railway Variables.
+
+
+## Perubahan v3.27
+- Tombol "📝 Hasil Jawaban Semua Tim/Siswa" pada Live Control Center dihapus.
+- Live Control Center hanya menampilkan Papan Skor Semua Tim/Siswa.
+- Rekap lengkap jawaban tetap tersedia pada halaman selesai melalui menu Rekap Jawaban.

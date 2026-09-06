@@ -26,11 +26,11 @@ h1{font-size:clamp(36px,7vw,76px);line-height:.95;margin:14px 0 10px;text-align:
 .login-choice .tag{font-size:14px}.login-choice .creator{margin-top:5px}
 .login-choice .home-hero{margin:4px 0 0}.login-choice .home-hero img{width:min(430px,55%);max-height:180px}
 .login-choice .choice-grid{gap:12px;margin-top:10px}.login-choice .choice{min-height:120px;padding:17px 20px}.login-choice .choice .icon{font-size:38px}.login-choice .choice h2{font-size:21px;margin:7px 0 4px}.login-choice .choice p{font-size:13px}.login-choice .mini{margin-top:10px}
-#game>.card{padding:16px}.question{font-size:clamp(23px,3.2vw,34px);margin:12px 0 16px}.opts{gap:10px}.opt{min-height:60px;padding:11px 14px;font-size:16px}.admin-panel{margin-top:10px;padding-top:10px}.adminDashboard{margin-top:8px}.live-admin-grid{gap:10px}.live-question-card,.live-side{padding:12px}.live-question-text{font-size:20px!important;line-height:1.15!important}.admin-game-actions{margin-top:8px!important}.admin-game-actions button{padding:11px 14px}.admin-panel #adminCurrentResults{margin-top:8px!important}.admin-panel #adminCurrentResults .scroll{max-height:320px;overflow:auto}.admin-panel>div:last-child{margin-top:8px!important}.admin-panel .leader{max-height:105px;overflow:auto;margin:6px 0;padding-left:20px}.admin-panel .leader li{padding:7px 10px;margin:4px 0}
+#game>.card{padding:16px}.question{font-size:clamp(23px,3.2vw,34px);margin:12px 0 16px}.opts{gap:10px}.opt{min-height:60px;padding:11px 14px;font-size:16px}.admin-panel{margin-top:10px;padding-top:10px}.adminDashboard{margin-top:8px}.live-admin-grid{gap:10px}.live-question-card,.live-side{padding:12px}.live-question-text{font-size:20px!important;line-height:1.15!important}.admin-game-actions{margin-top:8px!important}.admin-game-actions button{padding:11px 14px}.admin-panel>div:last-child{margin-top:8px!important}.admin-panel .leader{max-height:105px;overflow:auto;margin:6px 0;padding-left:20px}.admin-panel .leader li{padding:7px 10px;margin:4px 0}
 .student-lobby-card{max-width:860px;margin:12px auto 0;text-align:center}.student-lobby-hero{display:flex;justify-content:center;margin:2px 0 0}.student-lobby-hero img{width:min(300px,70%);max-height:220px;object-fit:contain;filter:drop-shadow(0 16px 24px rgba(0,0,0,.35));animation:float 6s ease-in-out infinite}.student-wait-title{font-size:clamp(24px,4vw,38px);font-weight:1000;margin:2px 0 5px}.student-wait-sub{color:#b8c8e9;margin:0 0 10px}.student-lobby-card .teams{text-align:left}.student-lobby-card .waiting{margin-top:10px}
 .student-thanks{padding:26px 18px}.student-thanks .finish-title{font-size:clamp(34px,7vw,58px);margin:4px}.student-thanks .tag{font-size:17px}.thanks-icon{font-size:64px;animation:pulse .8s ease-in-out infinite alternate}
 @media(max-width:720px){.login-choice{margin:1vh auto 0;padding:14px}.login-choice .home-hero img{width:min(360px,80%);max-height:150px}.login-choice .choice{min-height:105px;padding:14px}.login-choice .choice .icon{font-size:32px}.login-choice .choice h2{font-size:18px}.student-lobby-hero img{width:min(250px,80%);max-height:180px}}
-@media(min-width:721px){#game>.card{min-height:255px}.admin-panel{padding:10px 14px}.live-question-text{max-height:48px;overflow:hidden}.admin-panel #adminCurrentResults{max-height:145px;overflow:hidden}}
+@media(min-width:721px){#game>.card{min-height:255px}.admin-panel{padding:10px 14px}.live-question-text{max-height:48px;overflow:hidden}}
 </style>
 
 <style id="v26-style">
@@ -72,8 +72,8 @@ h1{font-size:clamp(36px,7vw,76px);line-height:.95;margin:14px 0 10px;text-align:
 
 <style id="v3-21-team-results-fix">
 /* v3.21: tampilkan seluruh tim pada hasil soal aktif. Sebelumnya area 125px memotong tim ke-3. */
-#adminCurrentResults .scroll{max-height:320px!important;overflow:auto}
-@media(max-width:720px){#adminCurrentResults .scroll{max-height:280px!important}}
+
+
 
 /* v3.22: hasil jawaban live dan papan skor dikelompokkan dalam tombol accordion */
 .live-result-buttons{display:grid;gap:10px;margin-top:18px}
@@ -173,7 +173,7 @@ section{max-width:100%;min-width:0}
 .recap-modal-card .scroll{max-height:48vh;overflow:auto}
 .recap-modal-card .result-table{width:100%;min-width:0;table-layout:fixed}
 .recap-question{padding:13px 0;border-bottom:1px solid #ffffff12}.recap-question:last-child{border-bottom:0}.recap-question-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:9px}.recap-question-head strong{font-size:15px;line-height:1.35}.recap-question-head span{font-size:11px;color:#9fb0d5;white-space:nowrap}.recap-team-row{display:grid;grid-template-columns:minmax(150px,1.1fr) minmax(130px,1fr) minmax(110px,.8fr) minmax(90px,.7fr);gap:8px;padding:9px 10px;border:1px solid #ffffff0d;border-radius:10px;background:#ffffff04;margin-top:6px;align-items:center}.recap-team-row .team-name{font-weight:850}.recap-team-row .muted{color:#9fb0d5;font-size:12px}.recap-team-row .answer{overflow-wrap:anywhere}.recap-team-row .points{text-align:right;font-weight:850}.recap-team-head{display:grid;grid-template-columns:minmax(150px,1.1fr) minmax(130px,1fr) minmax(110px,.8fr) minmax(90px,.7fr);gap:8px;padding:0 10px 5px;color:#8495ba;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px}.recap-empty{padding:18px;text-align:center;color:#9fb0d5}
-@media(max-width:720px){.admin-panel #adminCurrentResults .scroll{max-height:280px}.recap-modal-card{width:96vw;padding:16px}.recap-modal-card .grid{grid-template-columns:1fr}.recap-modal-card .scroll{max-height:42vh}.recap-open-btn{font-size:16px}.recap-team-head{display:none}.recap-team-row{grid-template-columns:1fr 1fr}.recap-team-row .points{text-align:left}.recap-question-head{display:block}.recap-question-head span{display:block;margin-top:3px}}
+@media(max-width:720px){.recap-modal-card{width:96vw;padding:16px}.recap-modal-card .grid{grid-template-columns:1fr}.recap-modal-card .scroll{max-height:42vh}.recap-open-btn{font-size:16px}.recap-team-head{display:none}.recap-team-row{grid-template-columns:1fr 1fr}.recap-team-row .points{text-align:left}.recap-question-head{display:block}.recap-question-head span{display:block;margin-top:3px}}
 </style>
 </head>
 <body>
@@ -358,11 +358,7 @@ window.addEventListener("DOMContentLoaded",()=>{
       <div class="live-side"><div class="mini-score"><div class="t">TIM BERGABUNG</div><div class="n" id="liveTeams">0</div></div><div class="mini-score"><div class="t">JAWABAN MASUK</div><div class="n" id="liveAnswered">0/0</div></div><div class="mini-score"><div class="t">SOAL</div><div class="n" id="liveProgress">1/1</div></div></div>
     </div>
     <div class="live-result-buttons">
-      <div class="live-result-group">
-        <button id="liveAnswersToggle" class="recap-menu-btn live-recap-btn" onclick="toggleLiveAdminSection('answers')"><span>📝 Hasil Jawaban Semua Tim</span><b>BUKA</b></button>
-        <div id="adminCurrentResults" class="live-collapsible hidden"></div>
-      </div>
-      <div class="live-result-group">
+<div class="live-result-group">
         <button id="liveScoreToggle" class="recap-menu-btn live-recap-btn" onclick="toggleLiveAdminSection('score')"><span>🏆 Papan Skor Semua Tim</span><b>BUKA</b></button>
         <div id="liveScorePanel" class="live-collapsible hidden"><ol id="leader" class="leader"></ol></div>
       </div>
@@ -949,18 +945,13 @@ function renderQuestion(){
 }
 
 function toggleLiveAdminSection(which){
-  const map={answers:["adminCurrentResults","liveAnswersToggle"],score:["liveScorePanel","liveScoreToggle"]};
-  const item=map[which]; if(!item)return;
-  const panel=el(item[0]), btn=el(item[1]);
+  if(which!=="score")return;
+  const panel=el("liveScorePanel"), btn=el("liveScoreToggle");
   if(!panel||!btn)return;
   const willOpen=panel.classList.contains("hidden");
-  ["adminCurrentResults","liveScorePanel"].forEach(id=>{const p=el(id);if(p)p.classList.add("hidden")});
-  ["liveAnswersToggle","liveScoreToggle"].forEach(id=>{const b=el(id);if(b){b.classList.remove("active");const x=b.querySelector("b");if(x)x.textContent="BUKA"}});
-  if(willOpen){
-    panel.classList.remove("hidden");
-    btn.classList.add("active");
-    const x=btn.querySelector("b");if(x)x.textContent="TUTUP";
-  }
+  panel.classList.toggle("hidden",!willOpen);
+  btn.classList.toggle("active",willOpen);
+  const x=btn.querySelector("b");if(x)x.textContent=willOpen?"TUTUP":"BUKA";
 }
 
 function renderAdminResults(){
@@ -969,11 +960,8 @@ function renderAdminResults(){
   const answeredCount=rows.filter(r=>r.answered).length;
   if(el("liveAnswered"))el("liveAnswered").textContent=`${answeredCount}/${rows.length}`;
   const individual=state?.quizMode==="individual";
-  const answerBtn=el("liveAnswersToggle");
   const scoreBtn=el("liveScoreToggle");
-  if(answerBtn){const s=answerBtn.querySelector("span");if(s)s.textContent=individual?"📝 Hasil Jawaban Semua Siswa":"📝 Hasil Jawaban Semua Tim";}
   if(scoreBtn){const s=scoreBtn.querySelector("span");if(s)s.textContent=individual?"🏆 Papan Skor Semua Siswa":"🏆 Papan Skor Semua Tim";}
-  el("adminCurrentResults").innerHTML=`<h3>Soal ${adminResults.qIndex+1} — Hasil Jawaban ${individual?"Siswa":"Tim"}</h3><div class="scroll"><table class="result-table"><tr><th>${individual?"Siswa":"Tim"}</th><th>Jawaban</th><th>Dijawab oleh</th><th>Kunci</th><th>Hasil</th><th>Poin</th></tr>${rows.map(r=>`<tr><td><b>${escapeHtml(r.teamName)}</b></td><td>${escapeHtml(r.choice)}</td><td>${escapeHtml(r.submittedBy||"-")}</td><td>${escapeHtml(r.correctAnswer)}</td><td class="${r.result==='BENAR'?'good':r.result==='BELUM MENJAWAB'?'pending':'bad'}">${r.result}</td><td><b>${r.points}</b></td></tr>`).join("")}</table></div>`;
   el("leader").innerHTML=[...state.teams].sort((a,b)=>b.score-a.score).map(t=>`<li><span>${escapeHtml(t.name)}</span><b>${t.score} poin</b></li>`).join("");
 }
 
