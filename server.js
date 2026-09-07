@@ -16,7 +16,7 @@ app.get("/", (req, res) => {
   res.sendFile(path.join(process.cwd(), "public", "index.html"));
 });
 app.get("/health", (req, res) => {
-  res.json({ ok: true, app: "QUIZ NUSANTARA", version: "3.25.0" });
+  res.json({ ok: true, app: "QUIZ NUSANTARA", version: "3.28.0" });
 });
 
 app.use(express.json({ limit: "1mb" }));
@@ -274,7 +274,206 @@ function gradeBand(className) {
 function shuffleArray(arr) {
   const a = [...arr]; for (let i=a.length-1;i>0;i--) { const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a;
 }
-function generatedQuestions(className, subject, count=10) {
+
+function buildVeryEasyQuestions(className, subject) {
+  const m = String(className || "SD 1").match(/(SD|SMP|SMA)\s*(\d+)/i);
+  const level = m ? m[1].toUpperCase() : "SD";
+  const grade = m ? Number(m[2]) : 1;
+  const band = level === "SD" ? (grade <= 3 ? "sd-low" : "sd-high") : level.toLowerCase();
+  const common = {
+    "Bahasa Indonesia": {
+      "sd-low": [
+        ["Huruf pertama pada kata 'Buku' adalah ...", ["B","K","U","A"],0],
+        ["Lawan kata 'besar' adalah ...", ["kecil","panjang","tinggi","lebar"],0],
+        ["Kata 'makan' menunjukkan ...", ["kegiatan","warna","tempat","benda"],0],
+        ["Kalimat tanya biasanya diakhiri tanda ...", ["?",".",",","!"],0],
+        ["Tempat untuk membaca buku adalah ...", ["perpustakaan","pasar","lapangan","garasi"],0],
+        ["Kata yang tepat: 'Ibu ... nasi.'", ["memasak","berlari","tidur","menulis"],0],
+        ["Antonim kata 'panas' adalah ...", ["dingin","tinggi","besar","cepat"],0],
+        ["Nama orang biasanya diawali huruf ...", ["kapital","kecil","angka","simbol"],0]
+      ],
+      "sd-high": [
+        ["Gagasan utama paragraf disebut ...", ["ide pokok","judul buku","kata depan","tanda baca"],0],
+        ["Kata tanya untuk menanyakan orang adalah ...", ["siapa","kapan","mengapa","bagaimana"],0],
+        ["Sinonim 'pandai' adalah ...", ["cerdas","malas","lemah","lambat"],0],
+        ["Teks yang berisi langkah-langkah membuat sesuatu disebut teks ...", ["prosedur","narasi","puisi","deskripsi"],0],
+        ["Kalimat perintah dapat diakhiri tanda ...", ["!","?",",",":"],0],
+        ["Kata 'karena' menunjukkan hubungan ...", ["sebab","waktu","pilihan","tempat"],0]
+      ],
+      "smp": [
+        ["Teks yang menjelaskan proses terjadinya fenomena disebut ...", ["eksplanasi","narasi","puisi","iklan"],0],
+        ["Kalimat efektif sebaiknya ...", ["jelas dan hemat","sangat panjang","berulang","tanpa subjek"],0],
+        ["Kata 'tetapi' menunjukkan hubungan ...", ["pertentangan","sebab","waktu","tujuan"],0],
+        ["Diksi berarti ...", ["pilihan kata","jumlah kalimat","judul","gambar"],0],
+        ["Teks prosedur berisi ...", ["langkah-langkah","tokoh","pendapat","latar"],0]
+      ],
+      "sma": [
+        ["Diksi adalah ...", ["pilihan kata","jumlah paragraf","judul","gambar"],0],
+        ["Teks argumentasi menggunakan pendapat yang didukung ...", ["alasan dan bukti","warna","tokoh","rima"],0],
+        ["Data dan fakta membantu tulisan menjadi lebih ...", ["objektif","panjang","lucu","berima"],0],
+        ["Sumber rujukan digunakan untuk menunjukkan ...", ["dasar informasi","hiasan","ukuran teks","warna"],0],
+        ["Kalimat yang singkat dan jelas termasuk kalimat yang ...", ["efektif","rumit","ambigu","berulang"],0]
+      ]
+    },
+    "Matematika": {
+      "sd-low": [
+        ["Hasil 2 + 3 adalah ...", ["4","5","6","7"],1],
+        ["Hasil 7 - 2 adalah ...", ["4","5","6","7"],1],
+        ["Bilangan setelah 9 adalah ...", ["8","10","11","12"],1],
+        ["Bilangan sebelum 6 adalah ...", ["4","5","7","8"],1],
+        ["2 × 3 = ...", ["5","6","7","8"],1],
+        ["8 ÷ 2 = ...", ["2","3","4","5"],2],
+        ["Bentuk dengan 3 sisi disebut ...", ["segitiga","persegi","lingkaran","kubus"],0],
+        ["Setengah dari 10 adalah ...", ["4","5","6","7"],1]
+      ],
+      "sd-high": [
+        ["25 + 15 = ...", ["30","35","40","45"],2],
+        ["60 - 20 = ...", ["30","40","50","60"],1],
+        ["6 × 5 = ...", ["25","30","35","40"],1],
+        ["40 ÷ 5 = ...", ["6","7","8","9"],2],
+        ["1/2 sama dengan ...", ["2/4","1/3","3/4","2/3"],0],
+        ["Keliling persegi sisi 5 cm adalah ...", ["10 cm","15 cm","20 cm","25 cm"],2]
+      ],
+      "smp": [
+        ["10 + 15 = ...", ["20","25","30","35"],1],
+        ["30% dari 100 adalah ...", ["20","30","40","50"],1],
+        ["Jika x + 3 = 8, x = ...", ["3","4","5","6"],2],
+        ["FPB dari 6 dan 9 adalah ...", ["2","3","6","9"],1],
+        ["Keliling persegi sisi 4 cm adalah ...", ["8 cm","12 cm","16 cm","20 cm"],2],
+        ["Luas persegi panjang 5 cm × 2 cm adalah ...", ["7 cm²","10 cm²","12 cm²","15 cm²"],1]
+      ],
+      "sma": [
+        ["2 + 3 × 2 = ...", ["7","10","12","5"],0],
+        ["10% dari 200 adalah ...", ["10","20","30","40"],1],
+        ["Jika x + 5 = 12, x = ...", ["5","6","7","8"],2],
+        ["Rata-rata 4 dan 6 adalah ...", ["4","5","6","10"],1],
+        ["Kemiringan garis y = 2x + 1 adalah ...", ["1","2","3","4"],1],
+        ["Peluang muncul angka 1 pada dadu biasa adalah ...", ["1/2","1/3","1/6","1/8"],2]
+      ]
+    },
+    "IPAS": {
+      "sd-low": [
+        ["Bagian tumbuhan yang menyerap air adalah ...", ["akar","bunga","buah","batang"],0],
+        ["Sumber cahaya utama bagi bumi adalah ...", ["Matahari","Bulan","awan","bintang"],0],
+        ["Air yang menjadi es mengalami perubahan ...", ["membeku","menguap","mencair","mengembun"],0],
+        ["Hewan pemakan tumbuhan disebut ...", ["herbivor","karnivor","omnivor","serangga"],0],
+        ["Gaya yang membuat benda jatuh ke tanah adalah ...", ["gravitasi","magnet","gesek","pegas"],0],
+        ["Manusia bernapas menggunakan ...", ["paru-paru","mata","telinga","kulit"],0]
+      ],
+      "sd-high": [
+        ["Tumbuhan membuat makanan terutama di bagian ...", ["daun","akar","bunga","buah"],0],
+        ["Air berubah menjadi uap karena ...", ["menguap","membeku","mencair","mengendap"],0],
+        ["Energi dari matahari membantu tumbuhan melakukan ...", ["fotosintesis","tidur","berlari","berenang"],0],
+        ["Rantai makanan dimulai dari ...", ["produsen","konsumen puncak","pengurai","pemangsa"],0]
+      ],
+      "smp": [
+        ["Pusat pengatur aktivitas sel adalah ...", ["inti sel","ribosom","vakuola","dinding sel"],0],
+        ["Tumbuhan membuat makanan melalui ...", ["fotosintesis","respirasi","difusi","fermentasi"],0],
+        ["Planet merah adalah ...", ["Mars","Venus","Jupiter","Saturnus"],0],
+        ["Larutan termasuk campuran yang ...", ["homogen","selalu padat","selalu gas","berlapis"],0]
+      ],
+      "sma": [
+        ["DNA menyimpan ...", ["informasi genetik","air","panas","mineral"],0],
+        ["pH netral pada umumnya adalah ...", ["7","0","5","14"],0],
+        ["Gas terbanyak di atmosfer bumi adalah ...", ["nitrogen","oksigen","karbon dioksida","hidrogen"],0],
+        ["Fotosintesis menggunakan energi dari ...", ["cahaya","suara","gesekan","gravitasi"],0]
+      ]
+    },
+    "Pendidikan Pancasila": {
+      "sd-low": [
+        ["Bekerja bersama membersihkan kelas disebut ...", ["gotong royong","bertengkar","malas","bersaing"],0],
+        ["Sila pertama Pancasila adalah ...", ["Ketuhanan Yang Maha Esa","Persatuan Indonesia","Keadilan Sosial","Kemanusiaan"],0],
+        ["Menghargai teman yang berbeda disebut ...", ["toleransi","memaksa","mengejek","marah"],0],
+        ["Keputusan bersama dapat dicapai melalui ...", ["musyawarah","pertengkaran","paksaan","diam"],0]
+      ],
+      "sd-high": [
+        ["Lambang sila ketiga adalah ...", ["pohon beringin","bintang","rantai","padi dan kapas"],0],
+        ["Gotong royong menunjukkan sikap ...", ["bekerja bersama","mementingkan diri","mengejek","bertengkar"],0],
+        ["Mematuhi aturan sekolah menunjukkan sikap ...", ["tertib","acuh","malas","sombong"],0]
+      ],
+      "smp": [
+        ["Semboyan Bhinneka Tunggal Ika berarti ...", ["berbeda-beda tetapi tetap satu","semua harus sama","berbeda tanpa persatuan","satu orang"],0],
+        ["Musyawarah bertujuan mencapai ...", ["kesepakatan","kemenangan pribadi","pertengkaran","hukuman"],0],
+        ["UUD 1945 merupakan ...", ["konstitusi negara","jadwal sekolah","aturan permainan","daftar belanja"],0]
+      ],
+      "sma": [
+        ["Pancasila menjadi ... bangsa Indonesia", ["pedoman kehidupan berbangsa","jadwal sekolah","aturan permainan","daftar belanja"],0],
+        ["Kedaulatan dalam negara demokrasi berada di tangan ...", ["rakyat","satu orang","kelompok kecil","penonton"],0],
+        ["Setiap warga negara memiliki kedudukan yang ... di hadapan hukum", ["setara","berbeda berdasarkan jabatan","lebih tinggi jika kaya","lebih rendah jika muda"],0]
+      ]
+    },
+    "Seni": {
+      "sd-low": [
+        ["Merah, kuning, dan biru adalah warna ...", ["primer","sekunder","netral","gelap"],0],
+        ["Gendang dimainkan dengan cara ...", ["dipukul","ditiup","dipetik","digesek"],0],
+        ["Gambar di kertas termasuk karya ...", ["dua dimensi","tiga dimensi","empat dimensi","tanpa dimensi"],0],
+        ["Oranye adalah campuran warna ...", ["merah dan kuning","biru dan hijau","hitam dan putih","ungu dan biru"],0]
+      ],
+      "sd-high": [
+        ["Hijau dapat dibuat dari warna ...", ["biru dan kuning","merah dan biru","merah dan kuning","hitam dan putih"],0],
+        ["Alat musik yang dipetik adalah ...", ["gitar","gendang","seruling","drum"],0],
+        ["Patung merupakan karya seni ...", ["tiga dimensi","dua dimensi","satu dimensi","tanpa bentuk"],0]
+      ],
+      "smp": [
+        ["Garis, warna, dan tekstur termasuk unsur ...", ["seni rupa","olahraga","bahasa","musik"],0],
+        ["Tempo menunjukkan ...", ["cepat lambat lagu","tinggi nada","warna","ukuran"],0],
+        ["Bahan untuk membuat patung disebut ...", ["bahan berkarya","tempo","nada","irama"],0]
+      ],
+      "sma": [
+        ["Melodi, harmoni, dan ritme merupakan unsur ...", ["musik","olahraga","bahasa","matematika"],0],
+        ["Tempo berkaitan dengan ...", ["cepat lambat lagu","tinggi nada","warna","bentuk"],0],
+        ["Apresiasi seni dapat dilakukan dengan ...", ["mengamati dan menilai","menyalin saja","menghapus karya","mengabaikan"],0]
+      ]
+    },
+    "PJOK": {
+      "sd-low": [
+        ["Sebelum olahraga sebaiknya melakukan ...", ["pemanasan","tidur","makan banyak","diam"],0],
+        ["Berlari termasuk gerak ...", ["lokomotor","diam","tidur","duduk"],0],
+        ["Minum air saat olahraga membantu mencegah ...", ["dehidrasi","kantuk","marah","lupa"],0],
+        ["Bagian tubuh untuk menendang bola adalah ...", ["kaki","mata","telinga","rambut"],0]
+      ],
+      "sd-high": [
+        ["Pemanasan dilakukan sebelum olahraga untuk membantu mencegah ...", ["cedera","lapar","tidur","bosan"],0],
+        ["Makanan sehat sebaiknya ...", ["bergizi seimbang","sangat manis","hanya gorengan","tanpa air"],0],
+        ["Lari membantu meningkatkan ...", ["kebugaran","warna rambut","tinggi meja","suara"],0]
+      ],
+      "smp": [
+        ["Latihan untuk meningkatkan daya tahan dapat dilakukan dengan ...", ["jogging","tidur","duduk","menonton"],0],
+        ["Minum cukup air membantu menjaga ...", ["cairan tubuh","warna kulit","ukuran sepatu","rambut"],0],
+        ["Servis merupakan teknik dasar dalam permainan ...", ["bola voli","catur","lari","renang"],0]
+      ],
+      "sma": [
+        ["Latihan aerobik menggunakan ...", ["oksigen","buku","warna","suara"],0],
+        ["Pemanasan dilakukan sebelum latihan untuk menyiapkan ...", ["tubuh","buku","lapangan saja","musik"],0],
+        ["Pertolongan pertama diberikan saat terjadi ...", ["cedera","kemenangan","istirahat","pemanasan"],0]
+      ]
+    }
+  };
+  const list = common[subject]?.[band] || [];
+  if (!list.length) return [];
+  const out=[];
+  const variants = [
+    "Pilih jawaban yang benar.",
+    "Pilih satu jawaban yang paling tepat.",
+    "Manakah jawaban yang benar?",
+    "Jawaban yang tepat adalah ..."
+  ];
+  // Keep wording easy and readable. Generate enough entries for local selection without changing the concept.
+  for (let i=0; i<1000; i++) {
+    const item=list[i % list.length];
+    const prefix=variants[i % variants.length];
+    const q = `${prefix} ${item[0]}`;
+    out.push(qItem(q, item[1], item[2], `Jawaban benar: ${item[1][item[2]]}.`, subject));
+  }
+  return out;
+}
+
+function generatedQuestions(className, subject, count=10, difficulty="sedang") {
+  const requestedDifficulty = String(difficulty || "sedang").trim().toLowerCase();
+  if (requestedDifficulty === "sangat mudah") {
+    const veryEasy = buildVeryEasyQuestions(className, String(subject || "Matematika"));
+    return shuffleArray(veryEasy).slice(0, Math.min(1000, Math.max(1, Number(count) || 10))).map((x,i)=>({ ...x, id:i+1, difficulty:"sangat mudah", cognitiveLevel:"mengingat" }));
+  }
   const builtIn = buildBuiltinQuestions(className, String(subject || "Matematika"));
   if (builtIn.length) return shuffleArray(builtIn).slice(0, Math.min(1000, Math.max(1, Number(count) || 10))).map((x,i)=>({ ...x, id:i+1 }));
   const band = gradeBand(className), s = String(subject || "Matematika");
