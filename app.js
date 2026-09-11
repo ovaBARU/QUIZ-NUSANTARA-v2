@@ -1,5 +1,5 @@
 const API_BASE=window.RAVIXO_API_BASE||'/api',TOKEN_KEY='ravixo_token';
-let currentUser=null,currentPosts=[],selectedPost=null,selectedMedia=null,authMode='login',selectedChatUser=null,chatPoll=null,notificationPoll=null,currentFriendTab='friends',currentAlbumType=null,googleClientId='',googleInitialized=false,googlePendingCredential='';
+let currentUser=null,currentPosts=[],selectedPost=null,selectedMedia=[],authMode='login',selectedChatUser=null,chatPoll=null,notificationPoll=null,currentFriendTab='friends',currentAlbumType=null,googleClientId='',googleInitialized=false,googlePendingCredential='';
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const esc=v=>String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 const initials=n=>(String(n||'RV').trim().split(/\s+/).slice(0,2).map(x=>x[0]).join('').toUpperCase()||'RV');
@@ -125,14 +125,14 @@ async function loadComposeFriends(){try{const d=await api(`/users/${currentUser.
 function updateAudienceUI(){const v=$('#postVisibility')?.value||'public';$('#selectedFriendsWrap')?.classList.toggle('hidden',v!=='selected');if(v==='selected'&&currentUser&&!composeFriends.length)loadComposeFriends()}
 async function createPost(kind='text'){
   if(!requireLogin())return;
-  selectedMedia=null;
+  selectedMedia=[];
   const cap=$('#captionInput'),preview=$('#mediaPreview'),title=$('#composeTitle'),input=$('#mediaInput');
   if(cap)cap.value='';
   if(preview)preview.innerHTML='';
   if($('#postVisibility'))$('#postVisibility').value='public';
   $('#selectedFriendsWrap')?.classList.add('hidden');
   if(title)title.textContent=kind==='text'?'Buat postingan':kind==='image'?'Tambah foto':'Tambah video';
-  if(input){input.value='';input.accept=kind==='image'?'image/*':kind==='video'?'video/*':'image/*,video/*';input.dataset.postKind=kind;}
+  if(input){input.value='';input.accept=kind==='image'?'image/*':kind==='video'?'video/*':'image/*,video/*';input.multiple=kind!=='video';input.dataset.postKind=kind;}
   open('composeModal');
   if(kind!=='text')requestAnimationFrame(()=>input?.click());
 }
@@ -144,34 +144,52 @@ async function uploadMedia(file){
   if(!r.ok)throw new Error(d.error||'Upload gagal.');
   return d;
 }
+async function uploadMediaMultiple(files){
+  const fd=new FormData();files.forEach(f=>fd.append('media',f));
+  const h={};if(token())h.Authorization=`Bearer ${token()}`;
+  const r=await fetch(API_BASE+'/upload-multiple',{method:'POST',headers:h,body:fd});
+  const d=await r.json().catch(()=>({}));
+  if(!r.ok)throw new Error(d.error||'Upload beberapa media gagal.');
+  return d.files||[];
+}
 async function publishPost(e){
   e.preventDefault();
   if(!requireLogin())return;
   const btn=$('#composeForm button.primary'),caption=$('#captionInput')?.value.trim()||'';
-  if(!caption&&!selectedMedia)return status('Tulis teks atau pilih foto/video terlebih dahulu.',true);
+  if(!caption&&!selectedMedia.length)return status('Tulis teks atau pilih foto/video terlebih dahulu.',true);
   if(btn)btn.disabled=true;
   try{
-    let media_url=null,media_type=null;
-    if(selectedMedia){
-      status('Mengunggah media...');
-      const up=await uploadMedia(selectedMedia);
-      media_url=up.url;media_type=up.media_type;
+    const visibility=$('#postVisibility')?.value||'public';
+    const audience_user_ids=visibility==='selected'?$$('#selectedFriendsList input[type=checkbox]:checked').map(x=>x.value):[];
+    if(visibility==='selected'&&!audience_user_ids.length){if(btn)btn.disabled=false;return status('Pilih minimal satu teman.',true)}
+    let uploaded=[];
+    if(selectedMedia.length){
+      status(`Mengunggah ${selectedMedia.length} media...`);
+      uploaded=await uploadMediaMultiple(selectedMedia);
     }
-    const visibility=$('#postVisibility')?.value||'public';const audience_user_ids=visibility==='selected'?$$('#selectedFriendsList input[type=checkbox]:checked').map(x=>x.value):[];if(visibility==='selected'&&!audience_user_ids.length)return status('Pilih minimal satu teman.',true);await api('/posts',{method:'POST',body:JSON.stringify({caption,media_url,media_type,visibility,audience_user_ids})});
+    if(!uploaded.length){
+      await api('/posts',{method:'POST',body:JSON.stringify({caption,media_url:null,media_type:null,visibility,audience_user_ids})});
+    }else{
+      for(let i=0;i<uploaded.length;i++){
+        await api('/posts',{method:'POST',body:JSON.stringify({caption:i===0?caption:'',media_url:uploaded[i].url,media_type:uploaded[i].media_type,visibility,audience_user_ids})});
+      }
+    }
     close('composeModal');
-    selectedMedia=null;
+    selectedMedia=[];
     const input=$('#mediaInput');if(input)input.value='';
-    status('Postingan berhasil dipublikasikan.');
+    status(uploaded.length>1?`${uploaded.length} foto/video berhasil dipublikasikan.`:'Postingan berhasil dipublikasikan.');
     await loadFeed();
   }catch(err){status(err.message,true)}finally{if(btn)btn.disabled=false}
 }
-function previewSelectedMedia(file){
+function previewSelectedMedia(files){
   const box=$('#mediaPreview');if(!box)return;
-  if(!file){box.innerHTML='';return}
-  const url=URL.createObjectURL(file);
-  box.innerHTML=file.type.startsWith('video/')
-    ? `<video src="${esc(url)}" controls playsinline></video>`
-    : `<img src="${esc(url)}" alt="Pratinjau media">`;
+  if(!files||!files.length){box.innerHTML='';return}
+  box.innerHTML=files.map((file,i)=>{
+    const url=URL.createObjectURL(file);
+    return file.type.startsWith('video/')
+      ? `<div class="media-preview-item"><video src="${esc(url)}" controls playsinline></video><small>${i+1}. ${esc(file.name)}</small></div>`
+      : `<div class="media-preview-item"><img src="${esc(url)}" alt="Pratinjau media ${i+1}"><small>${i+1}. ${esc(file.name)}</small></div>`;
+  }).join('');
 }
 let avatarCrop={file:null,img:null,scale:1,x:0,y:0,drag:false,sx:0,sy:0,ox:0,oy:0};
 function positionAvatarCrop(){
@@ -229,7 +247,7 @@ async function loadNotifications(){if(!requireLogin())return;open('notificationM
 async function createAlbum(type){if(!requireLogin())return;const name=prompt(`Nama album ${type==='photo'?'foto':'video'}:`);if(name===null)return;const n=name.trim();if(!n)return status('Nama album tidak boleh kosong.',true);try{await api('/albums',{method:'POST',body:JSON.stringify({name:n,album_type:type})});status('Album berhasil dibuat.');await loadAlbumsPage(type)}catch(e){status(e.message,true)}}
 async function loadAlbumsPage(type){if(!requireLogin())return;currentAlbumType=type;hideMainPanels();$('.hero')?.classList.add('hidden');$('.composer')?.classList.add('hidden');$('.grid')?.classList.add('hidden');const page=$('#albumPage');page.classList.remove('hidden');page.innerHTML=`<div class="album-header"><div><button class="page-back" id="albumBack">← Kembali</button><h2>${type==='photo'?'🖼️ Album Foto':'🎞️ Album Video'}</h2><p class="muted">Buat album, ganti nama album, dan unggah ${type==='photo'?'foto':'video'} ke album pilihanmu.</p></div><button class="primary album-create-btn" id="createAlbumBtn">＋ Buat Album</button></div><div id="albumList" class="album-grid"><div class="loading">Memuat album...</div></div>`;$('#albumBack').onclick=()=>showView('home');$('#createAlbumBtn').onclick=()=>createAlbum(type);const d=await api('/albums?type='+type);const list=$('#albumList');list.innerHTML=(d.albums||[]).map(a=>`<article class="album-card" data-album-id="${a.id}"><div class="album-icon">${type==='photo'?'📷':'🎬'}</div><div class="album-card-main"><h3>${esc(a.name)}</h3><small>${Number(a.media_count)||0} media</small></div><div class="album-card-actions"><button class="secondary album-open-btn" data-id="${a.id}">Buka</button><button class="secondary album-rename-btn" data-id="${a.id}" data-name="${esc(a.name)}">✏️ Rename</button></div></article>`).join('')||'<div class="panel empty">Belum ada album. Buat album pertamamu.</div>';$$('.album-open-btn').forEach(b=>b.onclick=()=>openAlbum(Number(b.dataset.id),type));$$('.album-rename-btn').forEach(b=>b.onclick=()=>renameAlbum(Number(b.dataset.id),b.dataset.name,type))}
 async function renameAlbum(id,oldName,type){const name=prompt('Nama album baru:',oldName);if(name===null||!name.trim())return;try{await api(`/albums/${id}`,{method:'PUT',body:JSON.stringify({name:name.trim()})});status('Nama album berhasil diubah.');await loadAlbumsPage(type)}catch(e){status(e.message,true)}}
-async function openAlbum(id,type){if(!requireLogin())return;const page=$('#albumPage');page.innerHTML=`<button class="page-back" id="albumDetailBack">← Kembali ke Album</button><div id="albumDetail"><div class="loading">Memuat album...</div></div>`;$('#albumDetailBack').onclick=()=>loadAlbumsPage(type);try{const all=await api('/albums?type='+type);const a=(all.albums||[]).find(x=>String(x.id)===String(id));if(!a)throw new Error('Album tidak ditemukan.');const d=await api(`/albums/${id}/media`);$('#albumDetail').innerHTML=`<div class="album-detail-head"><div><h2>${type==='photo'?'🖼️':'🎞️'} ${esc(a.name)}</h2><p class="muted">${Number(a.media_count)||0} media</p></div><div><button class="secondary" id="renameAlbumDetail">✏️ Rename</button><button class="primary album-upload-btn" id="uploadAlbumBtn">＋ Unggah ${type==='photo'?'Foto':'Video'}</button><input id="albumMediaInput" type="file" accept="${type==='photo'?'image/*':'video/*'}" hidden></div></div><div class="album-media-grid">${(d.posts||[]).map(p=>p.media_type==='video'?`<video src="${esc(p.media_url)}" controls preload="metadata" class="album-media-video"></video>`:`<img src="${esc(p.media_url)}" class="album-media-photo" alt="Foto album" loading="lazy">`).join('')||'<div class="panel empty">Album ini belum memiliki media.</div>'}</div>`;$('#renameAlbumDetail').onclick=()=>renameAlbum(id,a.name,type);$('#uploadAlbumBtn').onclick=()=>$('#albumMediaInput').click();$('#albumMediaInput').onchange=async e=>{const f=e.target.files[0];if(!f)return;if(f.size>100*1024*1024)return status('Ukuran file maksimal 100 MB.',true);try{status('Mengunggah ke album...');const fd=new FormData();fd.append('media',f);const h={};if(token())h.Authorization=`Bearer ${token()}`;const r=await fetch(API_BASE+`/albums/${id}/media`,{method:'POST',headers:h,body:fd});const x=await r.json().catch(()=>({}));if(!r.ok)throw new Error(x.error||'Upload album gagal.');status('Media berhasil ditambahkan ke album.');await openAlbum(id,type)}catch(e){status(e.message,true)}finally{e.target.value=''}}}catch(e){$('#albumDetail').innerHTML=`<div class="panel empty">${esc(e.message)}</div>`}}
+async function openAlbum(id,type){if(!requireLogin())return;const page=$('#albumPage');page.innerHTML=`<button class="page-back" id="albumDetailBack">← Kembali ke Album</button><div id="albumDetail"><div class="loading">Memuat album...</div></div>`;$('#albumDetailBack').onclick=()=>loadAlbumsPage(type);try{const all=await api('/albums?type='+type);const a=(all.albums||[]).find(x=>String(x.id)===String(id));if(!a)throw new Error('Album tidak ditemukan.');const d=await api(`/albums/${id}/media`);$('#albumDetail').innerHTML=`<div class="album-detail-head"><div><h2>${type==='photo'?'🖼️':'🎞️'} ${esc(a.name)}</h2><p class="muted">${Number(a.media_count)||0} media</p></div><div><button class="secondary" id="renameAlbumDetail">✏️ Rename</button><button class="primary album-upload-btn" id="uploadAlbumBtn">＋ Unggah ${type==='photo'?'Foto':'Video'}</button><input id="albumMediaInput" type="file" accept="${type==='photo'?'image/*':'video/*'}" hidden></div></div><div class="album-media-grid">${(d.posts||[]).map(p=>p.media_type==='video'?`<video src="${esc(p.media_url)}" controls preload="metadata" class="album-media-video"></video>`:`<img src="${esc(p.media_url)}" class="album-media-photo" alt="Foto album" loading="lazy">`).join('')||'<div class="panel empty">Album ini belum memiliki media.</div>'}</div>`;$('#renameAlbumDetail').onclick=()=>renameAlbum(id,a.name,type);$('#uploadAlbumBtn').onclick=()=>$('#albumMediaInput').click();$('#albumMediaInput').onchange=async e=>{const files=[...(e.target.files||[])];if(!files.length)return;if(files.length>20)return status('Maksimal 20 file sekaligus ke album.',true);if(files.some(f=>f.size>100*1024*1024))return status('Setiap file maksimal 100 MB.',true);try{status(`Mengunggah ${files.length} media ke album...`);for(const f of files){const fd=new FormData();fd.append('media',f);const h={};if(token())h.Authorization=`Bearer ${token()}`;const r=await fetch(API_BASE+`/albums/${id}/media`,{method:'POST',headers:h,body:fd});const x=await r.json().catch(()=>({}));if(!r.ok)throw new Error(x.error||'Upload album gagal.')}status(`${files.length} media berhasil ditambahkan ke album.`);await openAlbum(id,type)}catch(e){status(e.message,true)}finally{e.target.value=''}}}catch(e){$('#albumDetail').innerHTML=`<div class="panel empty">${esc(e.message)}</div>`}}
 async function finishGoogleLogin(d,successText='Berhasil masuk dengan Google.'){localStorage.setItem(TOKEN_KEY,d.token);currentUser=(await api('/me')).user;updateUserUI();startNotificationPolling();$('#authModal')?.classList.remove('auth-required');close('authModal');$('#authMessage').textContent='';$('#googleCompleteWrap')?.classList.add('hidden');$('#authForm')?.classList.remove('hidden');status(successText);showView('home');await loadFeed()}
 function renderGoogleButton(){
   const box=$('#googleSignIn');
@@ -320,7 +338,7 @@ $$('[data-friend-tab]').forEach(b=>b.onclick=()=>loadFriends(b.dataset.friendTab
 $$('[data-close]').forEach(b=>b.onclick=()=>{if(b.dataset.close==='authModal'&&!currentUser){enforceAuthGate();return}if(b.dataset.close==='messageModal')stopChatPolling();close(b.dataset.close)});$$('.modal').forEach(m=>m.addEventListener('click',e=>{if(e.target===m){if(m.id==='authModal'&&!currentUser){enforceAuthGate();return}if(m.id==='messageModal')stopChatPolling();m.classList.add('hidden')}}));
 $('#searchInput')?.addEventListener('input',e=>{const m=$('#mobileSearchInput');if(m)m.value=e.target.value;loadFeed(e.target.value.trim())});
 $('#mobileSearchInput')?.addEventListener('input',e=>{const d=e.target.value.trim();$('#searchInput').value=e.target.value;loadFeed(d)});$('#friendSearch')?.addEventListener('input',e=>{if(currentFriendTab==='discover')loadFriends('discover',e.target.value.trim())});
-$('#mediaViewerClose')?.addEventListener('click',closeMediaViewer);$('#mediaViewer')?.addEventListener('click',e=>{if(e.target.id==='mediaViewer')closeMediaViewer()});document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeMediaViewer();['authModal','creatorModal','profileModal','notificationModal','commentModal','composeModal','messageModal','settingsModal','avatarCropModal','liveModal'].forEach(id=>close(id))}});$('#composeForm')?.addEventListener('submit',publishPost);$('#mediaInput')?.addEventListener('change',e=>{const f=e.target.files?.[0];if(!f){selectedMedia=null;previewSelectedMedia(null);return}if(f.size>100*1024*1024){e.target.value='';selectedMedia=null;previewSelectedMedia(null);return status('Ukuran file maksimal 100 MB.',true)}selectedMedia=f;previewSelectedMedia(f)});$('#changeAvatarBtn').onclick=()=>$('#avatarInput').click();$('#avatarInput').onchange=e=>{const f=e.target.files[0];if(f)uploadAvatar(f);e.target.value=''};$('#avatarCropCancel').onclick=closeAvatarCrop;$('#avatarCropReset').onclick=resetAvatarCrop;$('#avatarCropSave').onclick=saveCroppedAvatar;$('#avatarCropZoom').oninput=e=>{avatarCrop.scale=Number(e.target.value)||1;positionAvatarCrop()};$('#avatarCropStage').addEventListener('pointerdown',e=>{if(!avatarCrop.img)return;avatarCrop.drag=true;avatarCrop.sx=e.clientX;avatarCrop.sy=e.clientY;avatarCrop.ox=avatarCrop.x;avatarCrop.oy=avatarCrop.y;$('#avatarCropImage').classList.add('dragging');e.currentTarget.setPointerCapture?.(e.pointerId)});$('#avatarCropStage').addEventListener('pointermove',e=>{if(!avatarCrop.drag)return;avatarCrop.x=avatarCrop.ox+(e.clientX-avatarCrop.sx);avatarCrop.y=avatarCrop.oy+(e.clientY-avatarCrop.sy);positionAvatarCrop()});['pointerup','pointercancel','pointerleave'].forEach(ev=>$('#avatarCropStage').addEventListener(ev,()=>{avatarCrop.drag=false;$('#avatarCropImage').classList.remove('dragging')}));
+$('#mediaViewerClose')?.addEventListener('click',closeMediaViewer);$('#mediaViewer')?.addEventListener('click',e=>{if(e.target.id==='mediaViewer')closeMediaViewer()});document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeMediaViewer();['authModal','creatorModal','profileModal','notificationModal','commentModal','composeModal','messageModal','settingsModal','avatarCropModal','liveModal'].forEach(id=>close(id))}});$('#composeForm')?.addEventListener('submit',publishPost);$('#mediaInput')?.addEventListener('change',e=>{const files=[...(e.target.files||[])];if(!files.length){selectedMedia=[];previewSelectedMedia([]);return}if(files.length>10){e.target.value='';selectedMedia=[];previewSelectedMedia([]);return status('Maksimal 10 foto/video sekaligus.',true)}const postKind=e.target.dataset.postKind;if(postKind==='image'&&files.some(f=>!f.type.startsWith('image/'))){e.target.value='';selectedMedia=[];previewSelectedMedia([]);return status('Mode foto hanya menerima gambar.',true)}if(postKind==='video'&&files.some(f=>!f.type.startsWith('video/'))){e.target.value='';selectedMedia=[];previewSelectedMedia([]);return status('Mode video hanya menerima video.',true)}if(files.some(f=>f.size>100*1024*1024)){e.target.value='';selectedMedia=[];previewSelectedMedia([]);return status('Setiap file maksimal 100 MB.',true)}selectedMedia=files;previewSelectedMedia(files)});$('#changeAvatarBtn').onclick=()=>$('#avatarInput').click();$('#avatarInput').onchange=e=>{const f=e.target.files[0];if(f)uploadAvatar(f);e.target.value=''};$('#avatarCropCancel').onclick=closeAvatarCrop;$('#avatarCropReset').onclick=resetAvatarCrop;$('#avatarCropSave').onclick=saveCroppedAvatar;$('#avatarCropZoom').oninput=e=>{avatarCrop.scale=Number(e.target.value)||1;positionAvatarCrop()};$('#avatarCropStage').addEventListener('pointerdown',e=>{if(!avatarCrop.img)return;avatarCrop.drag=true;avatarCrop.sx=e.clientX;avatarCrop.sy=e.clientY;avatarCrop.ox=avatarCrop.x;avatarCrop.oy=avatarCrop.y;$('#avatarCropImage').classList.add('dragging');e.currentTarget.setPointerCapture?.(e.pointerId)});$('#avatarCropStage').addEventListener('pointermove',e=>{if(!avatarCrop.drag)return;avatarCrop.x=avatarCrop.ox+(e.clientX-avatarCrop.sx);avatarCrop.y=avatarCrop.oy+(e.clientY-avatarCrop.sy);positionAvatarCrop()});['pointerup','pointercancel','pointerleave'].forEach(ev=>$('#avatarCropStage').addEventListener(ev,()=>{avatarCrop.drag=false;$('#avatarCropImage').classList.remove('dragging')}));
 $('#saveSettings').onclick=async()=>{if(!requireLogin())return;const btn=$('#saveSettings');btn.disabled=true;$('#settingsMessage').textContent='Menyimpan profil...';try{const d=await api('/me',{method:'PUT',body:JSON.stringify({display_name:$('#settingsName').value.trim(),username:$('#settingsUsername').value.trim(),bio:$('#settingsBio').value.trim(),city:$('#settingsCity').value.trim(),work:$('#settingsWork').value.trim(),education:$('#settingsEducation').value.trim(),website:$('#settingsWebsite').value.trim()})});currentUser=d.user;updateUserUI();renderSettingsAvatar();$('#settingsMessage').textContent='Profil berhasil disimpan.';status('Profil berhasil diperbarui.')}catch(e){$('#settingsMessage').textContent=e.message;status(e.message,true)}finally{btn.disabled=false}};
 function enforceAuthGate(){
   if(currentUser){$('#authModal')?.classList.remove('auth-required');return}
