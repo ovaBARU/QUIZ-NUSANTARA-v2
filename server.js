@@ -1,195 +1,1330 @@
-import express from 'express';
-import path from 'path';
-import fs from 'fs';
-import {fileURLToPath} from 'url';
-import pg from 'pg';
-import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
-import multer from 'multer';
-import {randomBytes} from 'crypto';
-import {createServer} from 'http';
-import {WebSocketServer, WebSocket} from 'ws';
+const express = require("express");
+const http = require("http");
+const path = require("path");
+const fs = require("fs");
+const { Server } = require("socket.io");
+const { Pool } = require("pg");
+const crypto = require("crypto");
 
-const __dirname=path.dirname(fileURLToPath(import.meta.url));
-const app=express();
-const PORT=process.env.PORT||3000;
-const JWT_SECRET=process.env.JWT_SECRET||(process.env.NODE_ENV==='production'?null:'ravixo-development-only-secret');
-if(!JWT_SECRET && process.env.NODE_ENV==='production') throw new Error('JWT_SECRET belum dikonfigurasi. Tambahkan secret kuat di Railway.');
+const app = express();
+const server = http.createServer(app);
+const io = new Server(server, { cors: { origin: true, credentials: true } });
+app.set("trust proxy", 1);
 
-const pool=new pg.Pool({connectionString:process.env.DATABASE_URL,ssl:process.env.DATABASE_URL?{rejectUnauthorized:false}:false});
-app.use(express.json({limit:'2mb'}));
-app.use(express.urlencoded({extended:true}));
-const uploads=path.join(__dirname,'uploads'); fs.mkdirSync(uploads,{recursive:true});
-const storage=multer.diskStorage({destination:uploads,filename:(r,f,cb)=>cb(null,`${Date.now()}-${Math.random().toString(36).slice(2)}${path.extname(f.originalname)}`)});
-const upload=multer({storage,limits:{fileSize:100*1024*1024},fileFilter:(r,f,cb)=>cb(null,/^(image|video)\//.test(f.mimetype))});
-app.use('/uploads',express.static(uploads));
+app.use(express.static(path.join(process.cwd(), "public")));
+app.get("/", (req, res) => {
+  res.sendFile(path.join(process.cwd(), "public", "index.html"));
+});
+app.get("/health", (req, res) => {
+  res.json({ ok: true, app: "QUIZ NUSANTARA", version: "3.28.0" });
+});
 
-async function init(){
-  if(!process.env.DATABASE_URL){throw new Error('DATABASE_URL belum dikonfigurasi. Tambahkan PostgreSQL di Railway.');}
-  const schema=fs.readFileSync(new URL('./schema.sql',import.meta.url),'utf8');
-  await pool.query(schema);
+app.use(express.json({ limit: "1mb" }));
+app.post("/api/admin/google-login", async (req, res) => {
+  try {
+    const credential = String(req.body?.credential || "").trim();
+    if (!credential) return res.status(400).json({ ok:false, message:"Token Google tidak ditemukan." });
+    if (!GOOGLE_CLIENT_ID) return res.status(503).json({ ok:false, message:"GOOGLE_CLIENT_ID belum diatur di Railway." });
+
+    const r = await fetch("https://oauth2.googleapis.com/tokeninfo?id_token=" + encodeURIComponent(credential));
+    const info = await r.json();
+    if (!r.ok) return res.status(401).json({ ok:false, message:"Login Google tidak valid." });
+
+    const issuer = String(info.iss || "");
+    const audience = String(info.aud || "");
+    const email = String(info.email || "").trim().toLowerCase();
+    const verified = String(info.email_verified || "").toLowerCase() === "true";
+    if (!["accounts.google.com", "https://accounts.google.com"].includes(issuer)) return res.status(401).json({ ok:false, message:"Penerbit akun Google tidak valid." });
+    if (audience !== GOOGLE_CLIENT_ID) return res.status(401).json({ ok:false, message:"Google Client ID tidak cocok." });
+    if (!email || !verified) return res.status(401).json({ ok:false, message:"Email Google harus terverifikasi." });
+
+    const allowlist = ADMIN_GOOGLE_EMAILS.split(",").map(x => x.trim().toLowerCase()).filter(Boolean);
+    if (allowlist.length && !allowlist.includes(email)) {
+      return res.status(403).json({ ok:false, message:"Email Google ini belum diizinkan sebagai admin." });
+    }
+
+    const name = String(info.name || info.given_name || email.split("@")[0] || "Admin").trim();
+    const token = issueAdminSession(name, email);
+    res.json({ ok:true, token, name, email, expiresIn: ADMIN_SESSION_MS });
+  } catch (err) {
+    console.error("Google login error:", err);
+    res.status(500).json({ ok:false, message:"Login Google gagal diproses." });
+  }
+});
+
+app.get("/api/google-config", (req, res) => {
+  res.json({ enabled: !!GOOGLE_CLIENT_ID, clientId: GOOGLE_CLIENT_ID || "" });
+});
+
+app.get("/api/quizzes", (req, res) => {
+  res.json({ storage: storageMode, quizzes: quizBank.map(publicQuiz) });
+});
+
+// Public room lookup used only to show the correct student login fields before joining.
+// It intentionally exposes no questions, answers, student names, or admin data.
+app.get("/api/room-info", (req, res) => {
+  const code = String(req.query?.code || "").trim().toUpperCase();
+  const room = rooms.get(code);
+  if (!room) return res.status(404).json({ ok:false, message:"Room tidak ditemukan." });
+  res.json({ ok:true, code:room.code, quizMode:room.quizMode || "team", status:room.status });
+});
+
+app.get("/api/ai-status", (req, res) => {
+  res.json({ enabled: !!OPENAI_API_KEY, model: OPENAI_MODEL, webSearch: !!OPENAI_API_KEY });
+});
+
+const rooms = new Map();
+const adminSessions = new Map();
+const ADMIN_SESSION_MS = 12 * 60 * 60 * 1000;
+const GOOGLE_CLIENT_ID = String(process.env.GOOGLE_CLIENT_ID || "").trim();
+const ADMIN_GOOGLE_EMAILS = String(process.env.ADMIN_GOOGLE_EMAILS || "").trim();
+const OPENAI_API_KEY = String(process.env.OPENAI_API_KEY || "").trim();
+const OPENAI_MODEL = String(process.env.OPENAI_MODEL || "gpt-5.6-luna").trim();
+
+function issueAdminSession(name, email="") {
+  const token = crypto.randomBytes(32).toString("hex");
+  adminSessions.set(token, { name: String(name || "Admin").trim() || "Admin", email: String(email || "").trim().toLowerCase(), expiresAt: Date.now() + ADMIN_SESSION_MS });
+  return token;
+}
+function validAdminToken(token) {
+  const s = adminSessions.get(String(token || ""));
+  if (!s) return null;
+  if (s.expiresAt <= Date.now()) { adminSessions.delete(String(token || "")); return null; }
+  return s;
 }
 
-function verifyToken(raw){try{return jwt.verify(raw,JWT_SECRET)}catch{return null}}
-function auth(req,res,next){const h=req.headers.authorization||'';if(!h.startsWith('Bearer '))return res.status(401).json({error:'Login diperlukan.'});const payload=verifyToken(h.slice(7));if(!payload)return res.status(401).json({error:'Sesi tidak valid atau sudah kedaluwarsa.'});req.user=payload;next()}
-function optionalAuth(req,res,next){const h=req.headers.authorization||'';if(h.startsWith('Bearer ')){const payload=verifyToken(h.slice(7));if(payload)req.user=payload}next()}
-function sign(u){return jwt.sign({id:String(u.id),email:u.email,username:u.username},JWT_SECRET,{expiresIn:'7d'});}
-app.get('/health',(req,res)=>res.json({ok:true,service:'RAVIXO',time:new Date().toISOString()}));
-app.get('/api/config',(req,res)=>res.json({google_client_id:process.env.GOOGLE_CLIENT_ID||''}));
-async function verifyGoogleCredential(credential){
-  if(!process.env.GOOGLE_CLIENT_ID)throw new Error('GOOGLE_CLIENT_ID belum dikonfigurasi di Railway.');
-  const r=await fetch('https://oauth2.googleapis.com/tokeninfo?id_token='+encodeURIComponent(String(credential||'')));
-  if(!r.ok)throw new Error('Token Google tidak valid.');
-  const p=await r.json();
-  if(p.aud!==process.env.GOOGLE_CLIENT_ID)throw new Error('Token Google bukan untuk aplikasi RAVIXO.');
-  if(p.iss!=='https://accounts.google.com'&&p.iss!=='accounts.google.com')throw new Error('Penerbit token Google tidak valid.');
-  if(!p.email||!(p.email_verified===true||p.email_verified==='true'))throw new Error('Email Google belum terverifikasi.');
-  return p;
+// v2.8 persistence: Railway PostgreSQL when DATABASE_URL exists, JSON fallback otherwise.
+const DATA_DIR = path.join(process.cwd(), "data");
+const QUIZ_FILE = path.join(DATA_DIR, "quizzes.json");
+const QUIZ_BANK_DIR = path.join(DATA_DIR, "quiz-bank");
+fs.mkdirSync(DATA_DIR, { recursive: true });
+const pool = process.env.DATABASE_URL ? new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false }, max: 5 }) : null;
+let storageMode = pool ? "postgres" : "json";
+
+function cleanQuizQuestions(questions, packageSubject = "Umum") {
+  if (!Array.isArray(questions)) return [];
+  return questions.map((q, i) => {
+    // v3.25 compact storage accepts both old `opts` and compact `o`.
+    const rawOpts = Array.isArray(q.opts) ? q.opts : q.o;
+    const opts = Array.isArray(rawOpts) ? rawOpts.map(v => String(v ?? "").trim()).filter(Boolean).slice(0, 4) : [];
+    const a = Number(q.a);
+    return { id: i + 1, subject: String(q.subject || packageSubject || "Umum").trim() || "Umum", q: String(q.q || "").trim(), opts, a: Number.isInteger(a) && a >= 0 && a < opts.length ? a : 0, e: String(q.e || "").trim() };
+  });
 }
-function googleUsername(email,name){
-  const base=String(email||'').split('@')[0].toLowerCase().replace(/[^a-z0-9_]+/g,'').slice(0,20)||'ravixo';
-  return base;
+
+function normalizeQuizPackage(pkg) {
+  if (!pkg || typeof pkg !== "object") return pkg;
+  return {
+    ...pkg,
+    questions: cleanQuizQuestions(pkg.questions, pkg.subject || "Umum"),
+    updatedAt: pkg.updatedAt || new Date().toISOString()
+  };
 }
-app.post('/api/auth/google',async(req,res)=>{try{
-  const p=await verifyGoogleCredential(req.body.credential);
-  const email=String(p.email).toLowerCase().trim();
-  const existing=await pool.query('SELECT * FROM users WHERE lower(email)=$1',[email]);
-  if(existing.rowCount){const u=existing.rows[0];return res.json({token:sign(u),user:{id:u.id,email:u.email,phone:u.phone,display_name:u.display_name,username:u.username}})}
-  // Akun baru dari Google tetap wajib melengkapi nomor HP satu kali.
-  const phone=String(req.body.phone||'').replace(/[^0-9+]/g,'');
-  const displayName=String(req.body.display_name||p.name||email.split('@')[0]).trim().slice(0,100);
-  let username=String(req.body.username||googleUsername(email,p.name)).trim().toLowerCase().replace(/[^a-z0-9_]/g,'').slice(0,30)||'ravixo';
-  if(!phone){
-    return res.status(409).json({
-      needs_phone:true,email,display_name:displayName,username,
-      error:'Masukkan nomor HP satu kali untuk menyelesaikan pendaftaran Google.'
+
+function compactQuizPackage(pkg) {
+  return {
+    id: pkg.id,
+    name: pkg.name,
+    subject: pkg.subject,
+    description: pkg.description || "",
+    builtIn: !!pkg.builtIn,
+    questions: (pkg.questions || []).map(q => ({
+      q: q.q,
+      o: q.opts,
+      a: q.a,
+      e: q.e || ""
+    })),
+    updatedAt: pkg.updatedAt || new Date().toISOString()
+  };
+}
+
+function compactQuizBank(bank) {
+  return bank.map(compactQuizPackage);
+}
+
+async function loadQuizBank() {
+  if (pool) {
+    try {
+      await pool.query(`CREATE TABLE IF NOT EXISTS quiz_bank (id TEXT PRIMARY KEY, name TEXT NOT NULL, subject TEXT, description TEXT, built_in BOOLEAN NOT NULL DEFAULT FALSE, questions JSONB NOT NULL, updated_at TIMESTAMPTZ NOT NULL)`);
+      const result = await pool.query(`SELECT id,name,subject,description,built_in,questions,updated_at FROM quiz_bank ORDER BY built_in DESC, updated_at DESC`);
+      if (result.rows.length) {
+        const rows = result.rows.map(r => normalizeQuizPackage({ id:r.id, name:r.name, subject:r.subject, description:r.description, builtIn:r.built_in, questions:r.questions, updatedAt:r.updated_at }));
+        // Upgrade older built-in banks automatically to the current 1,000-question catalog.
+        for (const q of rows) {
+          if (!q.builtIn || !Array.isArray(q.questions) || q.questions.length >= 1000) continue;
+          const m = String(q.id || '').match(/^builtin-(sd|smp|sma)-(\d+)-/i);
+          if (!m) continue;
+          const className = `${m[1].toUpperCase()} ${m[2]}`;
+          const generated = buildBuiltinQuestions(className, q.subject);
+          if (generated.length >= 1000) {
+            q.questions = generated.map((x,i)=>({ ...x, id:i+1 }));
+            q.name = `${q.subject} — ${className} (1.000 Soal)`;
+            q.description = `1.000 soal bawaan ${q.subject}, ${className}, dengan variasi konteks memahami–mengaplikasi–menganalisis–merefleksi sesuai pendekatan Pembelajaran Mendalam.`;
+            q.updatedAt = new Date().toISOString();
+            await pool.query(`UPDATE quiz_bank SET name=$2,description=$3,questions=$4::jsonb,updated_at=$5 WHERE id=$1`, [q.id,q.name,q.description,JSON.stringify(q.questions),q.updatedAt]);
+          }
+        }
+        return rows;
+      }
+      const seed = Object.entries(subjects).map(([name, qs]) => ({ id: "builtin-" + name.toLowerCase().replace(/[^a-z0-9]+/g, "-"), name, subject:name, description:"Soal bawaan QUIZ NUSANTARA", builtIn:true, questions:cleanQuizQuestions(qs.map(q => ({...q, subject:name})), name), updatedAt:new Date().toISOString() }));
+      for (const q of seed) await pool.query(`INSERT INTO quiz_bank (id,name,subject,description,built_in,questions,updated_at) VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7) ON CONFLICT (id) DO NOTHING`, [q.id,q.name,q.subject,q.description,q.builtIn,JSON.stringify(q.questions),q.updatedAt]);
+      return seed;
+    } catch (err) {
+      console.error("PostgreSQL unavailable, falling back to JSON:", err.message);
+      storageMode = "json";
+    }
+  }
+  // v3.26: class-split JSON bank. Each file stays small enough for GitHub web upload.
+  try {
+    if (fs.existsSync(QUIZ_BANK_DIR)) {
+      const files = fs.readdirSync(QUIZ_BANK_DIR)
+        .filter(f => /^bank-\d+\.json$/i.test(f))
+        .sort();
+      if (files.length) {
+        const merged = [];
+        for (const file of files) {
+          const part = JSON.parse(fs.readFileSync(path.join(QUIZ_BANK_DIR, file), "utf8"));
+          if (Array.isArray(part)) merged.push(...part);
+        }
+        if (merged.length) return merged.map(normalizeQuizPackage);
+      }
+    }
+  } catch (err) { console.error("Split quiz bank read failed:", err.message); }
+  // Backward compatibility with v3.25 and older deployments.
+  try {
+    const raw = JSON.parse(fs.readFileSync(QUIZ_FILE, "utf8"));
+    if (Array.isArray(raw) && raw.length) return raw.map(normalizeQuizPackage);
+  } catch (_) {}
+  const seed = Object.entries(subjects).map(([name, qs]) => ({ id:"builtin-"+name.toLowerCase().replace(/[^a-z0-9]+/g,"-"), name, subject:name, description:"Soal bawaan QUIZ NUSANTARA", builtIn:true, questions:cleanQuizQuestions(qs.map(q=>({...q,subject:name}))), updatedAt:new Date().toISOString() }));
+  fs.mkdirSync(QUIZ_BANK_DIR, { recursive: true });
+  fs.writeFileSync(path.join(QUIZ_BANK_DIR, "bank-01.json"), JSON.stringify(compactQuizBank(seed)));
+  return seed;
+}
+
+async function saveQuizBank() {
+  if (storageMode === "postgres" && pool) {
+    for (const q of quizBank) await pool.query(`INSERT INTO quiz_bank (id,name,subject,description,built_in,questions,updated_at) VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7) ON CONFLICT (id) DO UPDATE SET name=EXCLUDED.name,subject=EXCLUDED.subject,description=EXCLUDED.description,built_in=EXCLUDED.built_in,questions=EXCLUDED.questions,updated_at=EXCLUDED.updated_at`, [q.id,q.name,q.subject,q.description||"",!!q.builtIn,JSON.stringify(q.questions),q.updatedAt||new Date().toISOString()]);
+    await pool.query(`DELETE FROM quiz_bank WHERE id <> ALL($1::text[])`, [quizBank.map(q=>q.id)]);
+    return;
+  }
+  // v3.26: persist JSON in small class-sized chunks instead of one huge file.
+  fs.mkdirSync(QUIZ_BANK_DIR, { recursive: true });
+  const groups = new Map();
+  for (const pkg of quizBank) {
+    const m = String(pkg.name || "").match(/(?:—|-)\s*(SD|SMP|SMA)\s*(\d+)/i);
+    const key = m ? `${m[1].toUpperCase()} ${m[2]}` : "OTHER";
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(pkg);
+  }
+  for (const f of fs.readdirSync(QUIZ_BANK_DIR)) {
+    if (/^bank-\d+\.json$/i.test(f)) fs.unlinkSync(path.join(QUIZ_BANK_DIR, f));
+  }
+  let index = 1;
+  for (const pkgs of groups.values()) {
+    fs.writeFileSync(path.join(QUIZ_BANK_DIR, `bank-${String(index++).padStart(2,"0")}.json`), JSON.stringify(compactQuizBank(pkgs)));
+  }
+  fs.writeFileSync(path.join(QUIZ_BANK_DIR, "index.json"), JSON.stringify({ version:"3.26.0", format:"class-split-v1", packages:quizBank.length, questions:quizBank.reduce((n,p)=>n+(p.questions?.length||0),0) }));
+}
+
+function publicQuiz(q) { return { id:q.id, name:q.name, subject:q.subject, description:q.description||"", builtIn:!!q.builtIn, questionCount:q.questions.length, updatedAt:q.updatedAt }; }
+function makeToken() {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let out = "";
+  for (let i = 0; i < 6; i++) out += chars[Math.floor(Math.random() * chars.length)];
+  return out;
+}
+
+const subjects = {
+  "Bahasa Indonesia": [
+    { q: "Gagasan utama sebuah paragraf disebut juga ...", opts: ["ide pokok", "kata kunci", "judul", "kalimat penjelas"], a: 0, e: "Ide pokok adalah inti pembahasan paragraf." },
+    { q: "Lawan kata 'tinggi' adalah ...", opts: ["besar", "rendah", "panjang", "lebar"], a: 1, e: "Antonim tinggi adalah rendah." }
+  ],
+  "Matematika": [
+    { q: "Hasil dari 8 × 7 adalah ...", opts: ["54", "56", "64", "48"], a: 1, e: "8 × 7 = 56." },
+    { q: "Pecahan yang senilai dengan 1/2 adalah ...", opts: ["2/3", "2/4", "3/5", "4/6"], a: 1, e: "2/4 dapat disederhanakan menjadi 1/2." }
+  ],
+  "IPAS": [
+    { q: "Tumbuhan membuat makanan sendiri melalui proses ...", opts: ["pernapasan", "fotosintesis", "pencernaan", "penguapan"], a: 1, e: "Fotosintesis membuat makanan dengan bantuan cahaya matahari." },
+    { q: "Sumber energi utama bagi bumi adalah ...", opts: ["Bulan", "angin", "Matahari", "air"], a: 2, e: "Matahari adalah sumber energi utama bagi bumi." }
+  ],
+  "Pendidikan Pancasila": [
+    { q: "Sila pertama Pancasila berbunyi ...", opts: ["Kemanusiaan yang Adil dan Beradab", "Persatuan Indonesia", "Ketuhanan Yang Maha Esa", "Keadilan Sosial"], a: 2, e: "Sila pertama adalah Ketuhanan Yang Maha Esa." },
+    { q: "Bekerja sama membersihkan kelas merupakan contoh ...", opts: ["gotong royong", "persaingan", "perpecahan", "menyerah"], a: 0, e: "Gotong royong berarti bekerja bersama untuk tujuan yang baik." }
+  ],
+  "Seni": [
+    { q: "Warna merah, kuning, dan biru termasuk warna ...", opts: ["primer", "sekunder", "tersier", "netral"], a: 0, e: "Merah, kuning, dan biru adalah warna primer." },
+    { q: "Alat musik yang dimainkan dengan cara dipukul adalah ...", opts: ["seruling", "gendang", "biola", "pianika"], a: 1, e: "Gendang dimainkan dengan cara dipukul." }
+  ],
+  "PJOK": [
+    { q: "Sebelum berolahraga sebaiknya melakukan ...", opts: ["pemanasan", "tidur", "makan banyak", "duduk diam"], a: 0, e: "Pemanasan membantu menyiapkan tubuh sebelum olahraga." },
+    { q: "Gerakan berpindah tempat dengan satu kaki secara bergantian disebut ...", opts: ["berlari", "melompat", "merangkak", "berguling"], a: 1, e: "Melompat merupakan gerakan dengan tolakan kaki untuk berpindah." }
+  ]
+};
+
+let quizBank = [];
+
+function gradeBand(className) {
+  const m = String(className || "SD 1").match(/(SD|SMP|SMA)\s*(\d+)/i);
+  if (!m) return "sd-low";
+  const level = m[1].toUpperCase(); const n = Number(m[2]);
+  if (level === "SD") return n <= 3 ? "sd-low" : "sd-high";
+  if (level === "SMP") return "smp";
+  return "sma";
+}
+function shuffleArray(arr) {
+  const a = [...arr]; for (let i=a.length-1;i>0;i--) { const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a;
+}
+
+function buildVeryEasyQuestions(className, subject) {
+  const m = String(className || "SD 1").match(/(SD|SMP|SMA)\s*(\d+)/i);
+  const level = m ? m[1].toUpperCase() : "SD";
+  const grade = m ? Number(m[2]) : 1;
+  const band = level === "SD" ? (grade <= 3 ? "sd-low" : "sd-high") : level.toLowerCase();
+  const common = {
+    "Bahasa Indonesia": {
+      "sd-low": [
+        ["Huruf pertama pada kata 'Buku' adalah ...", ["B","K","U","A"],0],
+        ["Lawan kata 'besar' adalah ...", ["kecil","panjang","tinggi","lebar"],0],
+        ["Kata 'makan' menunjukkan ...", ["kegiatan","warna","tempat","benda"],0],
+        ["Kalimat tanya biasanya diakhiri tanda ...", ["?",".",",","!"],0],
+        ["Tempat untuk membaca buku adalah ...", ["perpustakaan","pasar","lapangan","garasi"],0],
+        ["Kata yang tepat: 'Ibu ... nasi.'", ["memasak","berlari","tidur","menulis"],0],
+        ["Antonim kata 'panas' adalah ...", ["dingin","tinggi","besar","cepat"],0],
+        ["Nama orang biasanya diawali huruf ...", ["kapital","kecil","angka","simbol"],0]
+      ],
+      "sd-high": [
+        ["Gagasan utama paragraf disebut ...", ["ide pokok","judul buku","kata depan","tanda baca"],0],
+        ["Kata tanya untuk menanyakan orang adalah ...", ["siapa","kapan","mengapa","bagaimana"],0],
+        ["Sinonim 'pandai' adalah ...", ["cerdas","malas","lemah","lambat"],0],
+        ["Teks yang berisi langkah-langkah membuat sesuatu disebut teks ...", ["prosedur","narasi","puisi","deskripsi"],0],
+        ["Kalimat perintah dapat diakhiri tanda ...", ["!","?",",",":"],0],
+        ["Kata 'karena' menunjukkan hubungan ...", ["sebab","waktu","pilihan","tempat"],0]
+      ],
+      "smp": [
+        ["Teks yang menjelaskan proses terjadinya fenomena disebut ...", ["eksplanasi","narasi","puisi","iklan"],0],
+        ["Kalimat efektif sebaiknya ...", ["jelas dan hemat","sangat panjang","berulang","tanpa subjek"],0],
+        ["Kata 'tetapi' menunjukkan hubungan ...", ["pertentangan","sebab","waktu","tujuan"],0],
+        ["Diksi berarti ...", ["pilihan kata","jumlah kalimat","judul","gambar"],0],
+        ["Teks prosedur berisi ...", ["langkah-langkah","tokoh","pendapat","latar"],0]
+      ],
+      "sma": [
+        ["Diksi adalah ...", ["pilihan kata","jumlah paragraf","judul","gambar"],0],
+        ["Teks argumentasi menggunakan pendapat yang didukung ...", ["alasan dan bukti","warna","tokoh","rima"],0],
+        ["Data dan fakta membantu tulisan menjadi lebih ...", ["objektif","panjang","lucu","berima"],0],
+        ["Sumber rujukan digunakan untuk menunjukkan ...", ["dasar informasi","hiasan","ukuran teks","warna"],0],
+        ["Kalimat yang singkat dan jelas termasuk kalimat yang ...", ["efektif","rumit","ambigu","berulang"],0]
+      ]
+    },
+    "Matematika": {
+      "sd-low": [
+        ["Hasil 2 + 3 adalah ...", ["4","5","6","7"],1],
+        ["Hasil 7 - 2 adalah ...", ["4","5","6","7"],1],
+        ["Bilangan setelah 9 adalah ...", ["8","10","11","12"],1],
+        ["Bilangan sebelum 6 adalah ...", ["4","5","7","8"],1],
+        ["2 × 3 = ...", ["5","6","7","8"],1],
+        ["8 ÷ 2 = ...", ["2","3","4","5"],2],
+        ["Bentuk dengan 3 sisi disebut ...", ["segitiga","persegi","lingkaran","kubus"],0],
+        ["Setengah dari 10 adalah ...", ["4","5","6","7"],1]
+      ],
+      "sd-high": [
+        ["25 + 15 = ...", ["30","35","40","45"],2],
+        ["60 - 20 = ...", ["30","40","50","60"],1],
+        ["6 × 5 = ...", ["25","30","35","40"],1],
+        ["40 ÷ 5 = ...", ["6","7","8","9"],2],
+        ["1/2 sama dengan ...", ["2/4","1/3","3/4","2/3"],0],
+        ["Keliling persegi sisi 5 cm adalah ...", ["10 cm","15 cm","20 cm","25 cm"],2]
+      ],
+      "smp": [
+        ["10 + 15 = ...", ["20","25","30","35"],1],
+        ["30% dari 100 adalah ...", ["20","30","40","50"],1],
+        ["Jika x + 3 = 8, x = ...", ["3","4","5","6"],2],
+        ["FPB dari 6 dan 9 adalah ...", ["2","3","6","9"],1],
+        ["Keliling persegi sisi 4 cm adalah ...", ["8 cm","12 cm","16 cm","20 cm"],2],
+        ["Luas persegi panjang 5 cm × 2 cm adalah ...", ["7 cm²","10 cm²","12 cm²","15 cm²"],1]
+      ],
+      "sma": [
+        ["2 + 3 × 2 = ...", ["7","10","12","5"],0],
+        ["10% dari 200 adalah ...", ["10","20","30","40"],1],
+        ["Jika x + 5 = 12, x = ...", ["5","6","7","8"],2],
+        ["Rata-rata 4 dan 6 adalah ...", ["4","5","6","10"],1],
+        ["Kemiringan garis y = 2x + 1 adalah ...", ["1","2","3","4"],1],
+        ["Peluang muncul angka 1 pada dadu biasa adalah ...", ["1/2","1/3","1/6","1/8"],2]
+      ]
+    },
+    "IPAS": {
+      "sd-low": [
+        ["Bagian tumbuhan yang menyerap air adalah ...", ["akar","bunga","buah","batang"],0],
+        ["Sumber cahaya utama bagi bumi adalah ...", ["Matahari","Bulan","awan","bintang"],0],
+        ["Air yang menjadi es mengalami perubahan ...", ["membeku","menguap","mencair","mengembun"],0],
+        ["Hewan pemakan tumbuhan disebut ...", ["herbivor","karnivor","omnivor","serangga"],0],
+        ["Gaya yang membuat benda jatuh ke tanah adalah ...", ["gravitasi","magnet","gesek","pegas"],0],
+        ["Manusia bernapas menggunakan ...", ["paru-paru","mata","telinga","kulit"],0]
+      ],
+      "sd-high": [
+        ["Tumbuhan membuat makanan terutama di bagian ...", ["daun","akar","bunga","buah"],0],
+        ["Air berubah menjadi uap karena ...", ["menguap","membeku","mencair","mengendap"],0],
+        ["Energi dari matahari membantu tumbuhan melakukan ...", ["fotosintesis","tidur","berlari","berenang"],0],
+        ["Rantai makanan dimulai dari ...", ["produsen","konsumen puncak","pengurai","pemangsa"],0]
+      ],
+      "smp": [
+        ["Pusat pengatur aktivitas sel adalah ...", ["inti sel","ribosom","vakuola","dinding sel"],0],
+        ["Tumbuhan membuat makanan melalui ...", ["fotosintesis","respirasi","difusi","fermentasi"],0],
+        ["Planet merah adalah ...", ["Mars","Venus","Jupiter","Saturnus"],0],
+        ["Larutan termasuk campuran yang ...", ["homogen","selalu padat","selalu gas","berlapis"],0]
+      ],
+      "sma": [
+        ["DNA menyimpan ...", ["informasi genetik","air","panas","mineral"],0],
+        ["pH netral pada umumnya adalah ...", ["7","0","5","14"],0],
+        ["Gas terbanyak di atmosfer bumi adalah ...", ["nitrogen","oksigen","karbon dioksida","hidrogen"],0],
+        ["Fotosintesis menggunakan energi dari ...", ["cahaya","suara","gesekan","gravitasi"],0]
+      ]
+    },
+    "Pendidikan Pancasila": {
+      "sd-low": [
+        ["Bekerja bersama membersihkan kelas disebut ...", ["gotong royong","bertengkar","malas","bersaing"],0],
+        ["Sila pertama Pancasila adalah ...", ["Ketuhanan Yang Maha Esa","Persatuan Indonesia","Keadilan Sosial","Kemanusiaan"],0],
+        ["Menghargai teman yang berbeda disebut ...", ["toleransi","memaksa","mengejek","marah"],0],
+        ["Keputusan bersama dapat dicapai melalui ...", ["musyawarah","pertengkaran","paksaan","diam"],0]
+      ],
+      "sd-high": [
+        ["Lambang sila ketiga adalah ...", ["pohon beringin","bintang","rantai","padi dan kapas"],0],
+        ["Gotong royong menunjukkan sikap ...", ["bekerja bersama","mementingkan diri","mengejek","bertengkar"],0],
+        ["Mematuhi aturan sekolah menunjukkan sikap ...", ["tertib","acuh","malas","sombong"],0]
+      ],
+      "smp": [
+        ["Semboyan Bhinneka Tunggal Ika berarti ...", ["berbeda-beda tetapi tetap satu","semua harus sama","berbeda tanpa persatuan","satu orang"],0],
+        ["Musyawarah bertujuan mencapai ...", ["kesepakatan","kemenangan pribadi","pertengkaran","hukuman"],0],
+        ["UUD 1945 merupakan ...", ["konstitusi negara","jadwal sekolah","aturan permainan","daftar belanja"],0]
+      ],
+      "sma": [
+        ["Pancasila menjadi ... bangsa Indonesia", ["pedoman kehidupan berbangsa","jadwal sekolah","aturan permainan","daftar belanja"],0],
+        ["Kedaulatan dalam negara demokrasi berada di tangan ...", ["rakyat","satu orang","kelompok kecil","penonton"],0],
+        ["Setiap warga negara memiliki kedudukan yang ... di hadapan hukum", ["setara","berbeda berdasarkan jabatan","lebih tinggi jika kaya","lebih rendah jika muda"],0]
+      ]
+    },
+    "Seni": {
+      "sd-low": [
+        ["Merah, kuning, dan biru adalah warna ...", ["primer","sekunder","netral","gelap"],0],
+        ["Gendang dimainkan dengan cara ...", ["dipukul","ditiup","dipetik","digesek"],0],
+        ["Gambar di kertas termasuk karya ...", ["dua dimensi","tiga dimensi","empat dimensi","tanpa dimensi"],0],
+        ["Oranye adalah campuran warna ...", ["merah dan kuning","biru dan hijau","hitam dan putih","ungu dan biru"],0]
+      ],
+      "sd-high": [
+        ["Hijau dapat dibuat dari warna ...", ["biru dan kuning","merah dan biru","merah dan kuning","hitam dan putih"],0],
+        ["Alat musik yang dipetik adalah ...", ["gitar","gendang","seruling","drum"],0],
+        ["Patung merupakan karya seni ...", ["tiga dimensi","dua dimensi","satu dimensi","tanpa bentuk"],0]
+      ],
+      "smp": [
+        ["Garis, warna, dan tekstur termasuk unsur ...", ["seni rupa","olahraga","bahasa","musik"],0],
+        ["Tempo menunjukkan ...", ["cepat lambat lagu","tinggi nada","warna","ukuran"],0],
+        ["Bahan untuk membuat patung disebut ...", ["bahan berkarya","tempo","nada","irama"],0]
+      ],
+      "sma": [
+        ["Melodi, harmoni, dan ritme merupakan unsur ...", ["musik","olahraga","bahasa","matematika"],0],
+        ["Tempo berkaitan dengan ...", ["cepat lambat lagu","tinggi nada","warna","bentuk"],0],
+        ["Apresiasi seni dapat dilakukan dengan ...", ["mengamati dan menilai","menyalin saja","menghapus karya","mengabaikan"],0]
+      ]
+    },
+    "PJOK": {
+      "sd-low": [
+        ["Sebelum olahraga sebaiknya melakukan ...", ["pemanasan","tidur","makan banyak","diam"],0],
+        ["Berlari termasuk gerak ...", ["lokomotor","diam","tidur","duduk"],0],
+        ["Minum air saat olahraga membantu mencegah ...", ["dehidrasi","kantuk","marah","lupa"],0],
+        ["Bagian tubuh untuk menendang bola adalah ...", ["kaki","mata","telinga","rambut"],0]
+      ],
+      "sd-high": [
+        ["Pemanasan dilakukan sebelum olahraga untuk membantu mencegah ...", ["cedera","lapar","tidur","bosan"],0],
+        ["Makanan sehat sebaiknya ...", ["bergizi seimbang","sangat manis","hanya gorengan","tanpa air"],0],
+        ["Lari membantu meningkatkan ...", ["kebugaran","warna rambut","tinggi meja","suara"],0]
+      ],
+      "smp": [
+        ["Latihan untuk meningkatkan daya tahan dapat dilakukan dengan ...", ["jogging","tidur","duduk","menonton"],0],
+        ["Minum cukup air membantu menjaga ...", ["cairan tubuh","warna kulit","ukuran sepatu","rambut"],0],
+        ["Servis merupakan teknik dasar dalam permainan ...", ["bola voli","catur","lari","renang"],0]
+      ],
+      "sma": [
+        ["Latihan aerobik menggunakan ...", ["oksigen","buku","warna","suara"],0],
+        ["Pemanasan dilakukan sebelum latihan untuk menyiapkan ...", ["tubuh","buku","lapangan saja","musik"],0],
+        ["Pertolongan pertama diberikan saat terjadi ...", ["cedera","kemenangan","istirahat","pemanasan"],0]
+      ]
+    }
+  };
+  const list = common[subject]?.[band] || [];
+  if (!list.length) return [];
+  const out=[];
+  const variants = [
+    "Pilih jawaban yang benar.",
+    "Pilih satu jawaban yang paling tepat.",
+    "Manakah jawaban yang benar?",
+    "Jawaban yang tepat adalah ..."
+  ];
+  // Keep wording easy and readable. Generate enough entries for local selection without changing the concept.
+  for (let i=0; i<1000; i++) {
+    const item=list[i % list.length];
+    const prefix=variants[i % variants.length];
+    const q = `${prefix} ${item[0]}`;
+    out.push(qItem(q, item[1], item[2], `Jawaban benar: ${item[1][item[2]]}.`, subject));
+  }
+  return out;
+}
+
+function generatedQuestions(className, subject, count=10, difficulty="sedang") {
+  const requestedDifficulty = String(difficulty || "sedang").trim().toLowerCase();
+  if (requestedDifficulty === "sangat mudah") {
+    const veryEasy = buildVeryEasyQuestions(className, String(subject || "Matematika"));
+    return shuffleArray(veryEasy).slice(0, Math.min(1000, Math.max(1, Number(count) || 10))).map((x,i)=>({ ...x, id:i+1, difficulty:"sangat mudah", cognitiveLevel:"mengingat" }));
+  }
+  const builtIn = buildBuiltinQuestions(className, String(subject || "Matematika"));
+  if (builtIn.length) return shuffleArray(builtIn).slice(0, Math.min(1000, Math.max(1, Number(count) || 10))).map((x,i)=>({ ...x, id:i+1 }));
+  const band = gradeBand(className), s = String(subject || "Matematika");
+  let bank = [];
+  if (s === "Matematika") {
+    if (band === "sd-low") bank = [
+      ["Hasil dari 7 + 5 adalah ...",["10","11","12","13"],2,"7 + 5 = 12."],
+      ["Hasil dari 15 - 8 adalah ...",["5","6","7","8"],2,"15 - 8 = 7."],
+      ["Bilangan setelah 29 adalah ...",["28","30","31","39"],1,"Setelah 29 adalah 30."],
+      ["Ada 3 piring, tiap piring berisi 4 apel. Jumlah apel adalah ...",["7","10","12","14"],2,"3 × 4 = 12."],
+      ["Setengah dari 10 adalah ...",["2","5","6","8"],1,"10 ÷ 2 = 5."]
+    ];
+    else if (band === "sd-high") bank = [
+      ["Hasil dari 125 + 275 adalah ...",["300","350","400","450"],2,"125 + 275 = 400."],
+      ["Hasil dari 9 × 8 adalah ...",["64","72","81","96"],1,"9 × 8 = 72."],
+      ["Hasil dari 144 ÷ 12 adalah ...",["10","11","12","14"],2,"144 ÷ 12 = 12."],
+      ["Pecahan yang senilai dengan 3/4 adalah ...",["4/6","6/8","7/8","9/16"],1,"3/4 = 6/8."],
+      ["Keliling persegi dengan sisi 6 cm adalah ...",["12 cm","18 cm","24 cm","36 cm"],2,"4 × 6 = 24 cm."]
+    ];
+    else if (band === "smp") bank = [
+      ["Jika 3x + 5 = 20, nilai x adalah ...",["3","4","5","6"],2,"3x = 15 sehingga x = 5."],
+      ["FPB dari 24 dan 36 adalah ...",["6","8","12","18"],2,"FPB 24 dan 36 adalah 12."],
+      ["Gradien garis y = 2x + 3 adalah ...",["1","2","3","5"],1,"Koefisien x adalah gradien, yaitu 2."],
+      ["Luas segitiga dengan alas 10 cm dan tinggi 8 cm adalah ...",["18 cm²","40 cm²","80 cm²","90 cm²"],1,"½ × 10 × 8 = 40 cm²."],
+      ["25% dari 200 adalah ...",["25","40","50","75"],2,"0,25 × 200 = 50."]
+    ];
+    else bank = [
+      ["Jika 2x² = 50 dan x positif, nilai x adalah ...",["4","5","10","25"],1,"x² = 25 sehingga x = 5."],
+      ["Turunan dari f(x)=x²+3x adalah ...",["x+3","2x+3","2x²+3","x²+3"],1,"Turunan x² adalah 2x dan 3x adalah 3."],
+      ["Nilai sin 30° adalah ...",["0","1/2","√2/2","1"],1,"sin 30° = 1/2."],
+      ["Rata-rata dari 6, 8, 10, 12 adalah ...",["8","9","10","11"],1,"Jumlah 36 dibagi 4 = 9."],
+      ["Jika log₂ 8 = x, maka x = ...",["2","3","4","8"],1,"2³ = 8, jadi x = 3."]
+    ];
+  } else if (s === "Bahasa Indonesia") {
+    if (band === "sd-low") bank = [["Lawan kata 'besar' adalah ...",["tinggi","kecil","panjang","lebar"],1,"Antonim besar adalah kecil."],["Kalimat untuk menanyakan sesuatu biasanya diakhiri tanda ...",["titik","koma","tanya","seru"],2,"Kalimat tanya memakai tanda tanya (?) ."],["Kata 'berlari' menunjukkan ...",["nama benda","kegiatan","warna","tempat"],1,"Berlari adalah kegiatan."],["Tempat untuk membaca banyak buku disebut ...",["pasar","perpustakaan","lapangan","kantin"],1,"Perpustakaan adalah tempat membaca dan meminjam buku."],["Kata yang tepat: 'Adik ... susu.'",["minum","meminumkan","diminum","minuman"],0,"Kalimat yang tepat: Adik minum susu."]];
+    else if (band === "sd-high") bank = [["Gagasan utama paragraf disebut ...",["ide pokok","kata depan","judul buku","tanda baca"],0,"Ide pokok adalah inti paragraf."],["Sinonim kata 'cerdas' adalah ...",["malas","pandai","lemah","lambat"],1,"Cerdas bersinonim dengan pandai."],["Kata tanya untuk menanyakan alasan adalah ...",["apa","siapa","mengapa","kapan"],2,"Mengapa digunakan untuk menanyakan alasan."],["Kalimat yang menggunakan tanda seru dengan tepat adalah ...",["Tolong tutup pintu!","Siapa namamu!","Kapan datang!","Buku itu!"],0,"Tanda seru dapat dipakai untuk perintah atau seruan."],["Paragraf yang menceritakan urutan kejadian termasuk paragraf ...",["narasi","deskripsi","persuasi","argumentasi"],0,"Narasi berisi rangkaian peristiwa."]];
+    else if (band === "smp") bank = [["Teks yang bertujuan menjelaskan proses terjadinya suatu fenomena disebut ...",["eksplanasi","prosedur","negosiasi","anekdot"],0,"Teks eksplanasi menjelaskan proses fenomena."],["Kalimat efektif harus ...",["bertele-tele","jelas dan hemat","selalu panjang","tanpa subjek"],1,"Kalimat efektif jelas, logis, dan hemat kata."],["Kata 'karena' termasuk konjungsi yang menyatakan ...",["sebab","tujuan","pilihan","urutan"],0,"Karena menyatakan sebab."],["Bagian teks persuasi yang berisi ajakan disebut ...",["pengenalan isu","rangkaian argumen","pernyataan ajakan","penegasan ulang"],2,"Pernyataan ajakan berisi dorongan kepada pembaca."],["Majas yang membandingkan dua hal secara langsung menggunakan kata seperti 'adalah' disebut ...",["metafora","hiperbola","ironi","litotes"],0,"Metafora membandingkan secara langsung."]];
+    else bank = [["Teks yang menyajikan pendapat disertai alasan dan bukti disebut ...",["argumentasi","narasi","deskripsi","prosedur"],0,"Argumentasi menyampaikan pendapat dengan alasan/bukti."],["Kalimat 'Hujan turun dengan deras' menggunakan kata 'deras' sebagai ...",["verba","adjektiva","nomina","konjungsi"],1,"Deras adalah kata sifat."],["Dalam karya ilmiah, sumber rujukan perlu dicantumkan untuk ...",["memperpanjang teks","menunjukkan dasar informasi","menghias halaman","mengurangi data"],1,"Rujukan menunjukkan dasar informasi yang digunakan."],["Diksi adalah ...",["pilihan kata","susunan paragraf","jumlah kalimat","tanda baca"],0,"Diksi berarti pilihan kata."],["Kalimat yang paling objektif adalah ...",["Film itu paling keren","Menurut data, suhu naik 2°C","Saya sangat suka film itu","Makanan itu luar biasa"],1,"Pernyataan berbasis data lebih objektif."]];
+  } else if (s === "IPAS") {
+    if (band === "sd-low" || band === "sd-high") bank = [["Bagian tumbuhan yang menyerap air dari tanah adalah ...",["bunga","akar","buah","daun"],1,"Akar menyerap air dan mineral."],["Sumber cahaya dan panas utama bagi bumi adalah ...",["Bulan","Matahari","awan","angin"],1,"Matahari adalah sumber energi utama bumi."],["Perubahan air menjadi uap disebut ...",["membeku","menguap","mencair","mengembun"],1,"Menguap adalah perubahan cair menjadi gas."],["Hewan yang memakan tumbuhan disebut ...",["karnivor","herbivor","omnivor","insekta"],1,"Herbivor memakan tumbuhan."],["Gaya yang membuat benda jatuh ke bawah disebut ...",["gaya magnet","gravitasi","gesek","pegas"],1,"Gravitasi menarik benda menuju bumi."]];
+    else if (band === "smp") bank = [["Organel sel yang mengatur aktivitas sel adalah ...",["ribosom","inti sel","vakuola","dinding sel"],1,"Inti sel mengatur aktivitas sel."],["Proses perubahan energi cahaya menjadi energi kimia pada tumbuhan disebut ...",["respirasi","fotosintesis","fermentasi","difusi"],1,"Fotosintesis menghasilkan energi kimia dalam bentuk glukosa."],["Planet yang dikenal sebagai planet merah adalah ...",["Venus","Mars","Jupiter","Merkurius"],1,"Mars tampak kemerahan karena mineral besi di permukaannya."],["Campuran dengan zat terlarut yang merata disebut ...",["larutan","suspensi","endapan","unsur"],0,"Larutan merupakan campuran homogen."],["Rangkaian listrik yang memiliki satu jalur arus disebut rangkaian ...",["paralel","seri","terbuka ganda","campuran"],1,"Rangkaian seri memiliki satu jalur utama."]];
+    else bank = [["Hukum Newton I berkaitan dengan sifat benda untuk mempertahankan keadaan geraknya, disebut ...",["gaya","inersia","energi","momentum"],1,"Hukum I Newton dikenal sebagai hukum kelembaman/inersia."],["DNA terutama berfungsi menyimpan ...",["energi panas","informasi genetik","air","mineral"],1,"DNA menyimpan informasi genetik."],["pH larutan netral pada suhu sekitar 25°C adalah ...",["0","5","7","14"],2,"Larutan netral memiliki pH 7."],["Jika frekuensi gelombang meningkat sementara cepat rambat tetap, panjang gelombang akan ...",["meningkat","menurun","tetap","menjadi nol"],1,"v = fλ, jadi λ berbanding terbalik dengan f."],["Gas yang paling banyak menyusun atmosfer bumi adalah ...",["oksigen","nitrogen","karbon dioksida","hidrogen"],1,"Nitrogen sekitar 78% atmosfer bumi."]];
+  } else if (s === "Pendidikan Pancasila") {
+    bank = [["Sila pertama Pancasila berbunyi ...",["Ketuhanan Yang Maha Esa","Kemanusiaan yang Adil dan Beradab","Persatuan Indonesia","Keadilan Sosial"],0,"Sila pertama adalah Ketuhanan Yang Maha Esa."],["Bekerja bersama membersihkan kelas merupakan contoh ...",["gotong royong","persaingan","perpecahan","egoisme"],0,"Gotong royong berarti bekerja bersama."],["Menghargai perbedaan suku dan budaya mencerminkan sikap ...",["toleransi","memaksa","egois","acuh"],0,"Toleransi berarti menghargai perbedaan."],["Lambang sila ketiga Pancasila adalah ...",["bintang","rantai","pohon beringin","padi dan kapas"],2,"Pohon beringin melambangkan sila ketiga."],["Musyawarah bertujuan mencapai ...",["keputusan bersama","kemenangan pribadi","pertengkaran","hukuman"],0,"Musyawarah dilakukan untuk mencapai keputusan bersama."]];
+  } else if (s === "Seni") {
+    bank = [["Merah, kuning, dan biru termasuk warna ...",["primer","sekunder","tersier","netral"],0,"Ketiganya merupakan warna primer."],["Alat musik yang dimainkan dengan dipukul adalah ...",["seruling","gendang","biola","pianika"],1,"Gendang dimainkan dengan dipukul."],["Garis yang memberi kesan tenang biasanya adalah garis ...",["horizontal","zigzag","spiral tajam","acak"],0,"Garis horizontal memberi kesan tenang/stabil."],["Karya seni yang memiliki panjang dan lebar disebut karya seni ...",["dua dimensi","tiga dimensi","empat dimensi","gerak"],0,"Seni rupa dua dimensi memiliki panjang dan lebar."],["Tempo cepat dalam musik disebut ...",["largo","andante","allegro","adagio"],2,"Allegro menunjukkan tempo cepat."]];
+  } else if (s === "PJOK") {
+    bank = [["Sebelum olahraga sebaiknya melakukan ...",["pemanasan","tidur","duduk diam","makan banyak"],0,"Pemanasan menyiapkan tubuh untuk aktivitas."],["Gerakan berpindah tempat dengan melangkahkan kaki secara cepat disebut ...",["berlari","diam","membungkuk","tidur"],0,"Berlari adalah gerak lokomotor dengan kecepatan lebih tinggi."],["Latihan untuk meningkatkan daya tahan jantung dan paru adalah ...",["jogging","menonton","tidur","duduk"],0,"Jogging dapat melatih daya tahan kardiorespirasi."],["Menjaga kebersihan tubuh setelah olahraga membantu ...",["kesehatan","kelelahan","cedera","dehidrasi"],0,"Kebersihan membantu menjaga kesehatan."],["Gerakan mendorong tubuh dari lantai menggunakan kedua tangan disebut ...",["push-up","sit-up","squat","lari"],0,"Push-up melatih otot tubuh bagian atas."]];
+  } else bank = subjects[s] ? subjects[s].map(q=>[q.q,q.opts,q.a,q.e]) : Object.values(subjects).flat().map(q=>[q.q,q.opts,q.a,q.e]);
+  const expanded = shuffleArray(bank).flatMap(item => { const [q,opts,a,e]=item; return [{ q, opts:[...opts], a, e, subject:s }]; });
+  const base = [...expanded]; while (base.length < count) base.push(...expanded.map(x=>({...x, opts:[...x.opts]}))); 
+  return shuffleArray(base).slice(0,count).map((q,i)=>({...q,id:i+1}));
+}
+
+function isOpenAIRateLimitError(err) {
+  const msg = String(err?.message || err || "");
+  return err?.code === "OPENAI_RATE_LIMIT" || err?.status === 429 || /rate.?limit|tokens per min|TPM|too many requests/i.test(msg);
+}
+
+async function generateOnlineQuestions(className, subject, count=30, difficulty="sedang") {
+  if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY belum diatur di Railway.");
+  const safeCount = Math.min(30, Math.max(5, Number(count) || 10));
+  const grade = String(className || "SD 1").trim();
+  const lesson = String(subject || "Matematika").trim();
+  const level = String(difficulty || "sedang").trim();
+  const gradeNum = Number(grade.match(/\d+/)?.[0] || 1);
+  const phase = grade.startsWith("SD") ? (gradeNum <= 2 ? "Fase A" : gradeNum <= 4 ? "Fase B" : "Fase C") : grade.startsWith("SMP") ? "Fase D" : "Fase E/F";
+
+  // v3.20: hemat token — batch 5, prompt ringkas, schema minimal, tanpa retry saat rate-limit.
+  const batchSize = 5;
+  const all = [];
+
+  for (let offset = 0; offset < safeCount; offset += batchSize) {
+    const batchCount = Math.min(batchSize, safeCount - offset);
+    const prompt = `Buat tepat ${batchCount} soal pilihan ganda berbahasa Indonesia untuk ${grade} (${phase}), mata pelajaran ${lesson}, tingkat ${level}. Selaras Kurikulum Merdeka dan Pembelajaran Mendalam, sesuai usia. Gunakan web search bila perlu untuk memeriksa fakta terbaru dan prioritaskan sumber resmi Indonesia. JSON saja. Setiap soal tepat 4 opsi A-D dan tepat 1 jawaban benar. a adalah indeks jawaban benar 0-3.`;
+    const schema = {
+      type: "object",
+      properties: {
+        questions: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              q: { type: "string" },
+              opts: { type: "array", items: { type: "string" } },
+              a: { type: "integer" }
+            },
+            required: ["q", "opts", "a"],
+            additionalProperties: false
+          }
+        }
+      },
+      required: ["questions"],
+      additionalProperties: false
+    };
+
+    const response = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${OPENAI_API_KEY}` },
+      body: JSON.stringify({
+        model: OPENAI_MODEL,
+        tools: [{ type: "web_search", search_context_size: "low" }],
+        input: prompt,
+        text: { format: { type: "json_schema", name: "quiz_questions", strict: true, schema } },
+        max_output_tokens: 3000,
+        store: false
+      })
     });
-  }
-  if(!/^\+?[0-9]{9,15}$/.test(phone)) return res.status(400).json({error:'Nomor HP tidak valid. Gunakan 9-15 digit, boleh diawali +.'});
-  const takenPhone=await pool.query('SELECT 1 FROM users WHERE phone=$1',[phone]);
-  if(takenPhone.rowCount) return res.status(409).json({error:'Nomor HP sudah digunakan.'});
-  const taken=await pool.query('SELECT 1 FROM users WHERE lower(username)=$1',[username]);
-  if(taken.rowCount){username=username.slice(0,24)+'_'+Math.random().toString(36).slice(2,7)}
-  const passwordHash=await bcrypt.hash(randomBytes(32).toString('hex'),12);
-  const r=await pool.query('INSERT INTO users(email,phone,password_hash,display_name,username) VALUES($1,$2,$3,$4,$5) RETURNING id,email,phone,display_name,username',[email,phone,passwordHash,displayName,username]);
-  await pool.query('INSERT INTO creators(user_id) VALUES($1)',[r.rows[0].id]);
-  return res.status(201).json({token:sign(r.rows[0]),user:r.rows[0]});
-}catch(e){console.error(e);res.status(e.message.includes('GOOGLE_CLIENT_ID')?503:400).json({error:e.message||'Login Google gagal.'})}});
-app.post('/api/auth/register',async(req,res)=>{try{const {email,phone,password,display_name,username}=req.body;const normalizedEmail=String(email||'').toLowerCase().trim();const normalizedPhone=String(phone||'').replace(/[^0-9+]/g,'');if(!normalizedEmail||!normalizedPhone||!display_name||!username||!password||password.length<8)return res.status(400).json({error:'Email, nomor HP, nama, username dan password minimal 8 karakter wajib diisi.'});if(!/^\+?[0-9]{9,15}$/.test(normalizedPhone))return res.status(400).json({error:'Nomor HP tidak valid. Gunakan 9-15 digit, boleh diawali +.'});const hash=await bcrypt.hash(password,12);const r=await pool.query('INSERT INTO users(email,phone,password_hash,display_name,username) VALUES($1,$2,$3,$4,$5) RETURNING id,email,phone,display_name,username',[normalizedEmail,normalizedPhone,hash,display_name.trim(),username.trim().toLowerCase()]);await pool.query('INSERT INTO creators(user_id) VALUES($1)',[r.rows[0].id]);res.status(201).json({token:sign(r.rows[0]),user:r.rows[0]});}catch(e){res.status(400).json({error:e.code==='23505'?(String(e.detail||'').toLowerCase().includes('phone')?'Nomor HP sudah digunakan.':'Email atau username sudah digunakan.'):'Gagal membuat akun.'});}});
-app.post('/api/auth/login',async(req,res)=>{try{const {identifier,email,phone,password}=req.body;const value=String(identifier!=null?identifier:(email||phone)||'').trim();if(!value||!password)return res.status(400).json({error:'Email atau nomor HP dan password wajib diisi.'});const looksLikeEmail=value.includes('@');const normalizedEmail=value.toLowerCase();const normalizedPhone=value.replace(/[^0-9+]/g,'');const r=looksLikeEmail?await pool.query('SELECT * FROM users WHERE lower(email)=$1',[normalizedEmail]):await pool.query('SELECT * FROM users WHERE phone=$1',[normalizedPhone]);if(!r.rowCount||!(await bcrypt.compare(password,r.rows[0].password_hash)))return res.status(401).json({error:'Email/nomor HP atau password salah.'});const u=r.rows[0];res.json({token:sign(u),user:{id:u.id,email:u.email,phone:u.phone,display_name:u.display_name,username:u.username}});}catch(e){console.error(e);res.status(500).json({error:'Server gagal memproses login.'});}});
-app.get('/api/me',auth,async(req,res)=>{const r=await pool.query('SELECT id,email,phone,display_name,username,bio,city,work,education,website,avatar_url,created_at FROM users WHERE id=$1',[req.user.id]);res.json({user:r.rows[0]});});
-app.put('/api/me',auth,async(req,res)=>{try{const displayName=String(req.body.display_name||'').trim();const username=String(req.body.username||'').trim().toLowerCase();const bio=String(req.body.bio||'').trim();const city=String(req.body.city||'').trim();const work=String(req.body.work||'').trim();const education=String(req.body.education||'').trim();const website=String(req.body.website||'').trim();if(!displayName||!username)return res.status(400).json({error:'Nama tampilan dan username wajib diisi.'});if(displayName.length>100||username.length>30||bio.length>500||city.length>100||work.length>120||education.length>120||website.length>200)return res.status(400).json({error:'Data profil terlalu panjang.'});if(website&&!/^https?:\/\//i.test(website))return res.status(400).json({error:'Website harus diawali http:// atau https://.'});const r=await pool.query('UPDATE users SET display_name=$1,username=$2,bio=$3,city=$4,work=$5,education=$6,website=$7 WHERE id=$8 RETURNING id,email,display_name,username,bio,city,work,education,website,avatar_url,created_at',[displayName,username,bio||null,city||null,work||null,education||null,website||null,req.user.id]);res.json({user:r.rows[0]});}catch(e){res.status(400).json({error:e.code==='23505'?'Username sudah digunakan.':'Profil gagal diperbarui.'})}});
-app.post('/api/me/avatar',auth,upload.single('avatar'),async(req,res)=>{try{if(!req.file||!req.file.mimetype.startsWith('image/'))return res.status(400).json({error:'Foto profil harus berupa gambar.'});const r=await pool.query('SELECT avatar_url FROM users WHERE id=$1',[req.user.id]);const old=r.rows[0]?.avatar_url;const url=`/uploads/${req.file.filename}`;await pool.query('UPDATE users SET avatar_url=$1 WHERE id=$2',[url,req.user.id]);
-    await pool.query('INSERT INTO posts(user_id,caption,visibility,media_url,media_type) VALUES($1,$2,$3,$4,$5)',[req.user.id,'memperbarui foto profil','public',url,'image']);
-    if(old&&old.startsWith('/uploads/')){const oldPath=path.join(uploads,path.basename(old));if(fs.existsSync(oldPath))fs.unlinkSync(oldPath)}res.json({avatar_url:url,posted:true})}catch(e){if(req.file){const fp=path.join(uploads,req.file.filename);if(fs.existsSync(fp))fs.unlinkSync(fp)}res.status(500).json({error:'Foto profil gagal diperbarui.'})}});
-async function getPostForViewer(postId, viewerId){
-  const r=await pool.query(`SELECT p.*,u.display_name,u.username,u.avatar_url
-    FROM posts p JOIN users u ON u.id=p.user_id WHERE p.id=$1`,[postId]);
-  if(!r.rowCount)return null;
-  const p=r.rows[0];
-  const viewer=viewerId?String(viewerId):null;
-  if(String(p.user_id)===viewer || p.visibility==='public') return p;
-  if(!viewer)return null;
-  if(p.visibility==='private')return null;
-  if(p.visibility==='selected'){
-    const a=await pool.query('SELECT 1 FROM post_audience_users WHERE post_id=$1 AND user_id=$2',[p.id,viewer]);
-    return a.rowCount?p:null;
-  }
-  if(p.visibility==='friends'){
-    const f=await pool.query(`SELECT 1 FROM follows f JOIN follows g
-      ON g.follower_id=f.following_id AND g.following_id=f.follower_id
-      WHERE f.follower_id=$1 AND f.following_id=$2`,[viewer,p.user_id]);
-    return f.rowCount?p:null;
-  }
-  return null;
-}
-app.get('/api/posts',optionalAuth,async(req,res)=>{try{const limit=Math.min(Number(req.query.limit)||20,50),q=String(req.query.q||'').trim(),viewerId=req.user?req.user.id:null;const r=await pool.query(`SELECT p.*,u.display_name,u.username,u.avatar_url,(SELECT count(*) FROM likes l WHERE l.post_id=p.id) likes_count,(SELECT count(*) FROM comments c WHERE c.post_id=p.id) comments_count,(SELECT count(*) FROM shares s WHERE s.post_id=p.id) shares_count,(SELECT count(*) FROM views v WHERE v.post_id=p.id) views_count,CASE WHEN $3::bigint IS NULL THEN false WHEN p.user_id=$3 THEN false ELSE EXISTS(SELECT 1 FROM follows f WHERE f.follower_id=$3 AND f.following_id=p.user_id) END AS is_following,CASE WHEN $3::bigint IS NULL THEN false WHEN p.user_id=$3 THEN false ELSE EXISTS(SELECT 1 FROM follows f WHERE f.follower_id=p.user_id AND f.following_id=$3) END AS is_followed_by FROM posts p JOIN users u ON u.id=p.user_id WHERE (($3::bigint IS NOT NULL AND p.user_id=$3) OR p.visibility='public' OR ($3::bigint IS NOT NULL AND p.visibility='friends' AND EXISTS(SELECT 1 FROM follows f JOIN follows g ON g.follower_id=f.following_id AND g.following_id=f.follower_id WHERE f.follower_id=$3 AND f.following_id=p.user_id)) OR ($3::bigint IS NOT NULL AND p.visibility='selected' AND EXISTS(SELECT 1 FROM post_audience_users au WHERE au.post_id=p.id AND au.user_id=$3))) AND ($2='' OR p.caption ILIKE '%'||$2||'%' OR u.username ILIKE '%'||$2||'%') ORDER BY p.created_at DESC LIMIT $1`,[limit,q,viewerId]);res.json({posts:r.rows});}catch(e){console.error(e);res.status(500).json({error:'Feed gagal dimuat.'})}});
-app.post('/api/posts',auth,async(req,res)=>{try{const caption=String(req.body.caption||'').trim(),visibility=String(req.body.visibility||'public');const media_url=req.body.media_url||null,media_type=req.body.media_type||null;const allowed=['public','private','friends','selected'];if(!caption&&!media_url)return res.status(400).json({error:'Postingan harus memiliki teks atau media.'});if(!allowed.includes(visibility))return res.status(400).json({error:'Pilihan privasi tidak valid.'});let ids=Array.isArray(req.body.audience_user_ids)?[...new Set(req.body.audience_user_ids.map(String).filter(x=>/^\d+$/.test(x)&&x!==String(req.user.id)))]:[];if(visibility==='selected'){if(!ids.length)return res.status(400).json({error:'Pilih minimal satu teman.'});const friends=await pool.query(`SELECT u.id FROM follows f JOIN follows g ON g.follower_id=f.following_id AND g.following_id=f.follower_id JOIN users u ON u.id=f.following_id WHERE f.follower_id=$1 AND u.id=ANY($2::bigint[])`,[req.user.id,ids]);ids=friends.rows.map(x=>String(x.id));if(!ids.length)return res.status(400).json({error:'Teman terpilih tidak valid.'})}else ids=[];const r=await pool.query('INSERT INTO posts(user_id,caption,visibility,media_url,media_type) VALUES($1,$2,$3,$4,$5) RETURNING *',[req.user.id,caption,visibility,media_url,media_type]);if(ids.length)await pool.query('INSERT INTO post_audience_users(post_id,user_id) SELECT $1,unnest($2::bigint[]) ON CONFLICT DO NOTHING',[r.rows[0].id,ids]);res.status(201).json({post:r.rows[0]});}catch(e){console.error(e);res.status(500).json({error:'Postingan gagal dibuat.'})}});
-app.delete('/api/posts/:id',auth,async(req,res)=>{try{const r=await pool.query('SELECT media_url FROM posts WHERE id=$1 AND user_id=$2',[req.params.id,req.user.id]);if(!r.rowCount)return res.status(404).json({error:'Postingan tidak ditemukan atau bukan milikmu.'});const mediaUrl=r.rows[0].media_url;await pool.query('DELETE FROM posts WHERE id=$1 AND user_id=$2',[req.params.id,req.user.id]);if(mediaUrl&&String(mediaUrl).startsWith('/uploads/')){const fp=path.join(uploads,path.basename(mediaUrl));if(fs.existsSync(fp))fs.unlinkSync(fp)}res.json({ok:true});}catch(e){console.error(e);res.status(500).json({error:'Postingan gagal dihapus.'})}});
-app.post('/api/upload',auth,upload.single('media'),(req,res)=>{if(!req.file)return res.status(400).json({error:'File foto/video tidak valid.'});const type=req.file.mimetype.startsWith('video/')?'video':'image';res.status(201).json({url:`/uploads/${req.file.filename}`,media_type:type});});
-app.post('/api/upload-multiple',auth,upload.array('media',10),(req,res)=>{try{const files=req.files||[];if(!files.length)return res.status(400).json({error:'Tidak ada file yang diunggah.'});const out=files.map(f=>({url:`/uploads/${f.filename}`,media_type:f.mimetype.startsWith('video/')?'video':'image'}));res.status(201).json({files:out});}catch(e){for(const f of (req.files||[])){const fp=path.join(uploads,f.filename);if(fs.existsSync(fp))fs.unlinkSync(fp)}res.status(500).json({error:'Upload beberapa media gagal.'})}});
-app.post('/api/posts/:id/like',auth,async(req,res)=>{
-  const post=await getPostForViewer(req.params.id,req.user.id);
-  if(!post)return res.status(404).json({error:'Postingan tidak ditemukan atau tidak dapat diakses.'});
-  await pool.query('INSERT INTO likes(user_id,post_id) VALUES($1,$2) ON CONFLICT DO NOTHING',[req.user.id,req.params.id]);
-  res.json({ok:true});
-});
-app.delete('/api/posts/:id/like',auth,async(req,res)=>{await pool.query('DELETE FROM likes WHERE user_id=$1 AND post_id=$2',[req.user.id,req.params.id]);res.json({ok:true});});
-app.get('/api/posts/:id/comments',optionalAuth,async(req,res)=>{
-  try{
-    const post=await getPostForViewer(req.params.id,req.user?.id);
-    if(!post)return res.status(404).json({error:'Postingan tidak ditemukan atau tidak dapat diakses.'});
-    const r=await pool.query('SELECT c.*,u.display_name,u.username,u.avatar_url FROM comments c JOIN users u ON u.id=c.user_id WHERE c.post_id=$1 ORDER BY c.created_at ASC',[req.params.id]);
-    res.json({comments:r.rows});
-  }catch(e){res.status(500).json({error:'Komentar gagal dimuat.'})}
-});
-app.post('/api/posts/:id/comments',auth,async(req,res)=>{
-  const post=await getPostForViewer(req.params.id,req.user.id);
-  if(!post)return res.status(404).json({error:'Postingan tidak ditemukan atau tidak dapat diakses.'});
-  const body=String(req.body.body||'').trim();
-  if(!body)return res.status(400).json({error:'Komentar kosong.'});
-  if(body.length>2000)return res.status(400).json({error:'Komentar maksimal 2000 karakter.'});
-  const r=await pool.query('INSERT INTO comments(user_id,post_id,body) VALUES($1,$2,$3) RETURNING *',[req.user.id,req.params.id,body]);
-  res.status(201).json({comment:r.rows[0]});
-});
-app.post('/api/posts/:id/share',auth,async(req,res)=>{
-  const post=await getPostForViewer(req.params.id,req.user.id);
-  if(!post)return res.status(404).json({error:'Postingan tidak ditemukan atau tidak dapat diakses.'});
-  const shareType=['internal','external'].includes(req.body.share_type)?req.body.share_type:'internal';
-  await pool.query('INSERT INTO shares(user_id,post_id,share_type) VALUES($1,$2,$3)',[req.user.id,req.params.id,shareType]);
-  res.json({ok:true});
-});
-app.post('/api/posts/:id/view',auth,async(req,res)=>{
-  const post=await getPostForViewer(req.params.id,req.user.id);
-  if(!post)return res.status(404).json({error:'Postingan tidak ditemukan atau tidak dapat diakses.'});
-  await pool.query('INSERT INTO views(user_id,post_id) VALUES($1,$2) ON CONFLICT DO NOTHING',[req.user.id,req.params.id]);
-  res.json({ok:true});
-});
-app.get('/api/users/search',auth,async(req,res)=>{try{const q=String(req.query.q||'').trim();const r=await pool.query(`SELECT u.id,u.display_name,u.username,u.avatar_url,u.bio,u.city,u.work,u.education,u.website,(SELECT count(*) FROM posts p WHERE p.user_id=u.id) posts_count,(SELECT count(*) FROM follows f WHERE f.following_id=u.id) followers_count,(SELECT count(*) FROM follows f WHERE f.follower_id=u.id) following_count,EXISTS(SELECT 1 FROM follows f WHERE f.follower_id=$1 AND f.following_id=u.id) AS is_following,EXISTS(SELECT 1 FROM follows f WHERE f.follower_id=u.id AND f.following_id=$1) AS is_followed_by FROM users u WHERE u.id<>$1 AND ($2='' OR u.display_name ILIKE '%'||$2||'%' OR u.username ILIKE '%'||$2||'%') ORDER BY u.username ASC LIMIT 50`,[req.user.id,q]);res.json({users:r.rows});}catch(e){res.status(500).json({error:'Pencarian pengguna gagal.'})}});
-app.get('/api/users/:id',auth,async(req,res)=>{try{const r=await pool.query(`SELECT u.id,u.display_name,u.username,u.avatar_url,u.bio,u.city,u.work,u.education,u.website,(SELECT count(*) FROM posts p WHERE p.user_id=u.id) posts_count,(SELECT count(*) FROM follows f WHERE f.following_id=u.id) followers_count,(SELECT count(*) FROM follows f WHERE f.follower_id=u.id) following_count,EXISTS(SELECT 1 FROM follows f WHERE f.follower_id=$1 AND f.following_id=u.id) AS is_following,EXISTS(SELECT 1 FROM follows f WHERE f.follower_id=u.id AND f.following_id=$1) AS is_followed_by FROM users u WHERE u.id=$2`,[req.user.id,req.params.id]);if(!r.rowCount)return res.status(404).json({error:'Pengguna tidak ditemukan.'});res.json({user:r.rows[0]})}catch(e){res.status(500).json({error:'Profil pengguna gagal dimuat.'})}});
-app.post('/api/users/:id/follow',auth,async(req,res)=>{try{const target=String(req.params.id);if(target===String(req.user.id))return res.status(400).json({error:'Tidak dapat mengikuti diri sendiri.'});const u=await pool.query('SELECT id,username FROM users WHERE id=$1',[target]);if(!u.rowCount)return res.status(404).json({error:'Pengguna tidak ditemukan.'});await pool.query('INSERT INTO follows(follower_id,following_id) VALUES($1,$2) ON CONFLICT DO NOTHING',[req.user.id,target]);await pool.query(`INSERT INTO notifications(user_id,type,message) SELECT $1,'follow',$2 WHERE NOT EXISTS(SELECT 1 FROM notifications WHERE user_id=$1 AND type='follow' AND message=$2 AND created_at > now()-interval '1 minute')`,[target,`@${req.user.username} mulai mengikuti Anda`]);res.json({ok:true,following:true})}catch(e){console.error(e);res.status(500).json({error:'Gagal mengikuti pengguna.'})}});
-app.delete('/api/users/:id/follow',auth,async(req,res)=>{try{await pool.query('DELETE FROM follows WHERE follower_id=$1 AND following_id=$2',[req.user.id,req.params.id]);res.json({ok:true,following:false})}catch(e){res.status(500).json({error:'Gagal berhenti mengikuti pengguna.'})}});
-app.get('/api/users/:id/posts',auth,async(req,res)=>{try{const r=await pool.query(`SELECT p.*,u.display_name,u.username,u.avatar_url,(SELECT count(*) FROM likes l WHERE l.post_id=p.id) likes_count,(SELECT count(*) FROM comments c WHERE c.post_id=p.id) comments_count,(SELECT count(*) FROM shares s WHERE s.post_id=p.id) shares_count,(SELECT count(*) FROM views v WHERE v.post_id=p.id) views_count,EXISTS(SELECT 1 FROM likes l WHERE l.post_id=p.id AND l.user_id=$1) liked FROM posts p JOIN users u ON u.id=p.user_id WHERE p.user_id=$2 AND (p.visibility='public' OR p.user_id=$1 OR (p.visibility='friends' AND EXISTS(SELECT 1 FROM follows f JOIN follows g ON g.follower_id=f.following_id AND g.following_id=f.follower_id WHERE f.follower_id=$1 AND f.following_id=p.user_id)) OR (p.visibility='selected' AND EXISTS(SELECT 1 FROM post_audience_users au WHERE au.post_id=p.id AND au.user_id=$1))) ORDER BY p.created_at DESC LIMIT 50`,[req.user.id,req.params.id]);res.json({posts:r.rows})}catch(e){res.status(500).json({error:'Postingan profil gagal dimuat.'})}});
-app.get('/api/users/:id/friends',auth,async(req,res)=>{try{const r=await pool.query(`SELECT u.id,u.display_name,u.username,u.avatar_url FROM follows f JOIN follows g ON g.follower_id=f.following_id AND g.following_id=f.follower_id JOIN users u ON u.id=f.following_id WHERE f.follower_id=$1 ORDER BY GREATEST(f.created_at,g.created_at) DESC LIMIT 100`,[req.params.id]);res.json({users:r.rows})}catch(e){res.status(500).json({error:'Daftar teman gagal dimuat.'})}});
-app.get('/api/users/:id/followers',auth,async(req,res)=>{try{const r=await pool.query(`SELECT u.id,u.display_name,u.username,u.avatar_url FROM follows f JOIN users u ON u.id=f.follower_id WHERE f.following_id=$1 ORDER BY f.created_at DESC LIMIT 100`,[req.params.id]);res.json({users:r.rows})}catch(e){res.status(500).json({error:'Daftar pengikut gagal dimuat.'})}});
-app.get('/api/users/:id/following',auth,async(req,res)=>{try{const r=await pool.query(`SELECT u.id,u.display_name,u.username,u.avatar_url FROM follows f JOIN users u ON u.id=f.following_id WHERE f.follower_id=$1 ORDER BY f.created_at DESC LIMIT 100`,[req.params.id]);res.json({users:r.rows})}catch(e){res.status(500).json({error:'Daftar yang diikuti gagal dimuat.'})}});
-app.get('/api/users/:id/albums',auth,async(req,res)=>{try{const type=String(req.query.type||'').trim();const r=await pool.query(`SELECT a.id,a.name,a.album_type,a.created_at,a.updated_at,(SELECT count(*) FROM posts p WHERE p.album_id=a.id AND p.media_url IS NOT NULL) media_count FROM albums a WHERE a.user_id=$1 AND ($2='' OR a.album_type=$2) ORDER BY a.updated_at DESC,a.created_at DESC LIMIT 100`,[req.params.id,type]);res.json({albums:r.rows})}catch(e){res.status(500).json({error:'Album profil gagal dimuat.'})}});
-app.get('/api/users/:id/albums/:albumId/media',auth,async(req,res)=>{try{const r=await pool.query(`SELECT p.id,p.media_url,p.media_type,p.created_at FROM posts p JOIN albums a ON a.id=p.album_id WHERE a.id=$1 AND a.user_id=$2 AND p.media_url IS NOT NULL ORDER BY p.created_at DESC LIMIT 100`,[req.params.albumId,req.params.id]);res.json({media:r.rows})}catch(e){res.status(500).json({error:'Isi album profil gagal dimuat.'})}});
-app.get('/api/messages/users',auth,async(req,res)=>{try{const q=String(req.query.q||'').trim();const r=await pool.query(`SELECT u.id,u.display_name,u.username,u.avatar_url,MAX(m.created_at) AS last_message_at FROM users u JOIN messages m ON ((m.sender_id=$1 AND m.receiver_id=u.id) OR (m.receiver_id=$1 AND m.sender_id=u.id)) WHERE u.id<>$1 AND ($2='' OR u.display_name ILIKE '%'||$2||'%' OR u.username ILIKE '%'||$2||'%') GROUP BY u.id,u.display_name,u.username,u.avatar_url ORDER BY last_message_at DESC LIMIT 50`,[req.user.id,q]);res.json({users:r.rows});}catch(e){res.status(500).json({error:'Daftar riwayat pesan gagal dimuat.'});}});
-app.get('/api/messages/:userId',auth,async(req,res)=>{try{const other=String(req.params.userId);if(other===String(req.user.id))return res.status(400).json({error:'Tidak dapat membuka chat dengan diri sendiri.'});const u=await pool.query('SELECT id,display_name,username,avatar_url FROM users WHERE id=$1',[other]);if(!u.rowCount)return res.status(404).json({error:'Pengguna tidak ditemukan.'});const r=await pool.query(`SELECT m.id,m.sender_id,m.receiver_id,m.body,m.created_at,m.read_at,u.display_name AS sender_name,u.username AS sender_username FROM messages m JOIN users u ON u.id=m.sender_id WHERE (m.sender_id=$1 AND m.receiver_id=$2) OR (m.sender_id=$2 AND m.receiver_id=$1) ORDER BY m.created_at ASC LIMIT 200`,[req.user.id,other]);await pool.query('UPDATE messages SET read_at=now() WHERE sender_id=$1 AND receiver_id=$2 AND read_at IS NULL',[other,req.user.id]);res.json({user:u.rows[0],messages:r.rows});}catch(e){res.status(500).json({error:'Pesan gagal dimuat.'});}});
-app.post('/api/messages',auth,async(req,res)=>{try{const receiverId=String(req.body.receiver_id||'');const body=String(req.body.body||'').trim();if(!receiverId||!body)return res.status(400).json({error:'Penerima dan isi pesan wajib diisi.'});if(receiverId===String(req.user.id))return res.status(400).json({error:'Tidak dapat mengirim pesan ke diri sendiri.'});if(body.length>5000)return res.status(400).json({error:'Pesan maksimal 5000 karakter.'});const u=await pool.query('SELECT id,display_name,username,avatar_url FROM users WHERE id=$1',[receiverId]);if(!u.rowCount)return res.status(404).json({error:'Pengguna tidak ditemukan.'});const r=await pool.query('INSERT INTO messages(sender_id,receiver_id,body) VALUES($1,$2,$3) RETURNING id,sender_id,receiver_id,body,created_at,read_at',[req.user.id,receiverId,body]);await pool.query('INSERT INTO notifications(user_id,type,message) VALUES($1,$2,$3)',[receiverId,'message',`Pesan baru dari @${req.user.username}`]);res.status(201).json({message:r.rows[0],user:u.rows[0]});}catch(e){res.status(500).json({error:'Pesan gagal dikirim.'});}});
-app.get('/api/notifications',auth,async(req,res)=>{try{const r=await pool.query('SELECT * FROM notifications WHERE user_id=$1 ORDER BY created_at DESC LIMIT 50',[req.user.id]);const unread=await pool.query('SELECT COUNT(*)::int AS count FROM notifications WHERE user_id=$1 AND read_at IS NULL',[req.user.id]);res.json({notifications:r.rows,unread_count:unread.rows[0].count});}catch(e){res.status(500).json({error:'Notifikasi gagal dimuat.'});}});
-app.post('/api/notifications/read',auth,async(req,res)=>{try{await pool.query('UPDATE notifications SET read_at=now() WHERE user_id=$1 AND read_at IS NULL',[req.user.id]);res.json({ok:true});}catch(e){res.status(500).json({error:'Notifikasi gagal diperbarui.'});}});
-app.get('/api/albums',auth,async(req,res)=>{try{const type=String(req.query.type||'').trim();const r=await pool.query(`SELECT a.id,a.name,a.album_type,a.created_at,a.updated_at,(SELECT count(*) FROM posts p WHERE p.album_id=a.id) media_count FROM albums a WHERE a.user_id=$1 AND ($2='' OR a.album_type=$2) ORDER BY a.updated_at DESC,a.created_at DESC`,[req.user.id,type]);res.json({albums:r.rows})}catch(e){res.status(500).json({error:'Album gagal dimuat.'})}});
-app.post('/api/albums',auth,async(req,res)=>{try{const name=String(req.body.name||'').trim(),type=String(req.body.album_type||'').trim();if(!name||!['photo','video'].includes(type))return res.status(400).json({error:'Nama dan jenis album wajib diisi.'});if(name.length>80)return res.status(400).json({error:'Nama album maksimal 80 karakter.'});const r=await pool.query('INSERT INTO albums(user_id,name,album_type) VALUES($1,$2,$3) RETURNING *',[req.user.id,name,type]);res.status(201).json({album:r.rows[0]})}catch(e){res.status(500).json({error:'Album gagal dibuat.'})}});
-app.put('/api/albums/:id',auth,async(req,res)=>{try{const name=String(req.body.name||'').trim();if(!name||name.length>80)return res.status(400).json({error:'Nama album wajib diisi dan maksimal 80 karakter.'});const r=await pool.query('UPDATE albums SET name=$1,updated_at=now() WHERE id=$2 AND user_id=$3 RETURNING *',[name,req.params.id,req.user.id]);if(!r.rowCount)return res.status(404).json({error:'Album tidak ditemukan.'});res.json({album:r.rows[0]})}catch(e){res.status(500).json({error:'Nama album gagal diubah.'})}});
-app.delete('/api/albums/:id',auth,async(req,res)=>{try{const r=await pool.query('DELETE FROM albums WHERE id=$1 AND user_id=$2 RETURNING id',[req.params.id,req.user.id]);if(!r.rowCount)return res.status(404).json({error:'Album tidak ditemukan.'});res.json({ok:true})}catch(e){res.status(500).json({error:'Album gagal dihapus.'})}});
-app.get('/api/albums/:id/media',auth,async(req,res)=>{try{const r=await pool.query(`SELECT p.*,u.display_name,u.username,u.avatar_url,(SELECT count(*) FROM likes l WHERE l.post_id=p.id) likes_count,(SELECT count(*) FROM comments c WHERE c.post_id=p.id) comments_count,(SELECT count(*) FROM shares s WHERE s.post_id=p.id) shares_count,(SELECT count(*) FROM views v WHERE v.post_id=p.id) views_count,EXISTS(SELECT 1 FROM likes l WHERE l.post_id=p.id AND l.user_id=$1) liked FROM posts p JOIN users u ON u.id=p.user_id JOIN albums a ON a.id=p.album_id WHERE a.id=$2 AND a.user_id=$1 ORDER BY p.created_at DESC LIMIT 100`,[req.user.id,req.params.id]);res.json({posts:r.rows})}catch(e){res.status(500).json({error:'Isi album gagal dimuat.'})}});
-app.post('/api/albums/:id/media',auth,upload.single('media'),async(req,res)=>{try{if(!req.file)return res.status(400).json({error:'Media tidak valid.'});const a=await pool.query('SELECT id,album_type FROM albums WHERE id=$1 AND user_id=$2',[req.params.id,req.user.id]);if(!a.rowCount){const fp=path.join(uploads,req.file.filename);if(fs.existsSync(fp))fs.unlinkSync(fp);return res.status(404).json({error:'Album tidak ditemukan.'})}const type=req.file.mimetype.startsWith('video/')?'video':'image';const expected=a.rows[0].album_type;if(type!==(expected==='photo'?'image':'video')){const fp=path.join(uploads,req.file.filename);if(fs.existsSync(fp))fs.unlinkSync(fp);return res.status(400).json({error:`Album ini khusus ${expected==='photo'?'foto':'video'}.`})}const url=`/uploads/${req.file.filename}`;const r=await pool.query('INSERT INTO posts(user_id,caption,visibility,media_url,media_type,album_id) VALUES($1,$2,$3,$4,$5,$6) RETURNING *',[req.user.id,'','public',url,type,a.rows[0].id]);await pool.query('UPDATE albums SET updated_at=now() WHERE id=$1',[req.params.id]);res.status(201).json({post:r.rows[0]})}catch(e){if(req.file){const fp=path.join(uploads,req.file.filename);if(fs.existsSync(fp))fs.unlinkSync(fp)}res.status(500).json({error:'Media album gagal diunggah.'})}});
-app.post('/api/live',auth,async(req,res)=>{try{const existing=await pool.query("SELECT id,title FROM live_streams WHERE user_id=$1 AND status='live' ORDER BY created_at DESC LIMIT 1",[req.user.id]);if(existing.rowCount)return res.json({stream:existing.rows[0]});const title=String(req.body.title||'Siaran langsung RAVIXO').trim().slice(0,120)||'Siaran langsung RAVIXO';const r=await pool.query("INSERT INTO live_streams(user_id,title,status) VALUES($1,$2,'live') RETURNING id,title,status,created_at",[req.user.id,title]);res.status(201).json({stream:r.rows[0]});}catch(e){console.error(e);res.status(500).json({error:'Live gagal dimulai.'})}});
-app.get('/api/live/active/:userId',optionalAuth,async(req,res)=>{try{const r=await pool.query("SELECT l.id,l.title,l.created_at,l.user_id,u.display_name,u.username,u.avatar_url FROM live_streams l JOIN users u ON u.id=l.user_id WHERE l.user_id=$1 AND l.status='live' ORDER BY l.created_at DESC LIMIT 1",[req.params.userId]);res.json({stream:r.rows[0]||null})}catch(e){res.status(500).json({error:'Status live gagal dimuat.'})}});
-app.post('/api/live/:id/end',auth,async(req,res)=>{try{const r=await pool.query("UPDATE live_streams SET status='ended',ended_at=now() WHERE id=$1 AND user_id=$2 AND status='live' RETURNING id",[req.params.id,req.user.id]);if(!r.rowCount)return res.status(404).json({error:'Siaran tidak ditemukan.'});res.json({ok:true})}catch(e){res.status(500).json({error:'Live gagal diakhiri.'})}});
+    const data = await response.json();
+    if (!response.ok) {
+      const e = new Error(data?.error?.message || `OpenAI HTTP ${response.status}`);
+      e.status = response.status;
+      if (response.status === 429) e.code = "OPENAI_RATE_LIMIT";
+      throw e;
+    }
+    if (data?.status === "incomplete") throw new Error("Keluaran AI belum selesai.");
+    if (data?.status === "failed") throw new Error(data?.error?.message || "OpenAI gagal memproses permintaan.");
 
-app.get('/api/creator/dashboard',auth,async(req,res)=>{const r=await pool.query('SELECT * FROM creators WHERE user_id=$1',[req.user.id]);res.json({creator:r.rows[0]||null});});
-app.post('/api/creator/payouts',auth,async(req,res)=>{const amount=Number(req.body.amount);if(!Number.isFinite(amount)||amount<=0)return res.status(400).json({error:'Jumlah pencairan tidak valid.'});const client=await pool.connect();try{await client.query('BEGIN');const c=await client.query('SELECT balance FROM creators WHERE user_id=$1 FOR UPDATE',[req.user.id]);if(!c.rowCount||amount>Number(c.rows[0].balance)){await client.query('ROLLBACK');return res.status(400).json({error:'Saldo tidak mencukupi.'});}await client.query('UPDATE creators SET balance=balance-$1,pending_balance=pending_balance+$1 WHERE user_id=$2',[amount,req.user.id]);const p=await client.query('INSERT INTO payouts(user_id,amount) VALUES($1,$2) RETURNING *',[req.user.id,amount]);await client.query('COMMIT');res.status(201).json({payout:p.rows[0]});}catch(e){await client.query('ROLLBACK');res.status(500).json({error:'Pencairan gagal diproses.'});}finally{client.release();}});
-app.get('/api/search',async(req,res)=>{req.url='/api/posts?limit=50&q='+encodeURIComponent(req.query.q||'');return app._router.handle(req,res,()=>{});});
-app.use(express.static(__dirname));
-app.get('*',(req,res)=>res.sendFile(path.join(__dirname,'index.html')));
-const server=createServer(app);
-const wss=new WebSocketServer({server,path:'/live'});
-const liveRooms=new Map();
-wss.on('connection',(ws,req)=>{
-  let room=null,role=null,user=null;
-  try{const u=new URL(req.url,'http://localhost');user=verifyToken(u.searchParams.get('token')||'');}catch{}
-  if(!user){ws.close(1008,'Login diperlukan');return;}
-  ws.on('message',raw=>{try{const msg=JSON.parse(raw.toString());
-    if(msg.type==='join'){room=String(msg.streamId||'');role=msg.role==='host'?'host':'viewer';if(!room){ws.close();return;}let set=liveRooms.get(room);if(!set){set=new Set();liveRooms.set(room,set);}set.add(ws);
-      if(role==='host'){for(const peer of set){if(peer!==ws&&peer.readyState===WebSocket.OPEN)peer.send(JSON.stringify({type:'host-ready'}));}}
-      else {for(const peer of set){if(peer!==ws&&peer._liveRole==='host'&&peer.readyState===WebSocket.OPEN)peer.send(JSON.stringify({type:'viewer-joined',viewerId:String(user.id)}));}}
-      ws._liveRole=role;ws._liveUser=String(user.id);return;}
-    if(!room)return;const set=liveRooms.get(room)||new Set();
-    for(const peer of set){if(peer!==ws&&peer.readyState===WebSocket.OPEN){if(!msg.to||String(peer._liveUser)===String(msg.to)||msg.type==='broadcast')peer.send(JSON.stringify({...msg,from:String(user.id)}));}}
-  }catch{}});
-  ws.on('close',()=>{if(room){const set=liveRooms.get(room);set?.delete(ws);if(set&&set.size===0)liveRooms.delete(room);}});
+    let parsed;
+    try { parsed = JSON.parse(String(data?.output_text || "{}")); }
+    catch (_) { throw new Error("Format JSON dari AI tidak valid."); }
+
+    const rawQuestions = Array.isArray(parsed?.questions) ? parsed.questions : [];
+    const valid = rawQuestions
+      .map(q => ({
+        q: String(q?.q || "").trim(),
+        opts: Array.isArray(q?.opts) ? q.opts.map(v => String(v ?? "").trim()).filter(Boolean) : [],
+        a: Number(q?.a)
+      }))
+      .filter(q => q.q && q.opts.length === 4 && Number.isInteger(q.a) && q.a >= 0 && q.a < 4)
+      .map(q => ({ ...q, subject: lesson, e: "" }));
+
+    const seen = new Set(all.map(q => q.q.trim().toLowerCase()));
+    const unique = valid.filter(q => {
+      const key = q.q.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    if (unique.length < batchCount) {
+      throw new Error(`AI menghasilkan ${unique.length}/${batchCount} soal valid pada batch ${offset + 1}-${offset + batchCount}.`);
+    }
+    all.push(...unique.slice(0, batchCount));
+  }
+  return cleanQuizQuestions(all).map((q, i) => ({ ...q, id: i + 1, subject: lesson }));
+}
+
+function qItem(q, opts, a, e, subject) {
+  return { q: String(q), opts: opts.map(String), a, e: String(e || ""), subject };
+}
+function buildBuiltinQuestions(className, subject) {
+  const m = String(className || "SD 1").match(/(SD|SMP|SMA)\s*(\d+)/i);
+  const level = m ? m[1].toUpperCase() : "SD";
+  const grade = m ? Number(m[2]) : 1;
+  const band = level === "SD" ? (grade <= 3 ? "sd-low" : "sd-high") : level.toLowerCase();
+
+  if (subject === "Matematika") {
+    const out = [];
+    for (let i=1;i<=1000;i++) {
+      const mode=i%10;
+      let q,opts,ans,e;
+      if (band === "sd-low") {
+        if(mode===1){const x=i+3,y=i+5,correct=x+y;q=`Hasil dari ${x} + ${y} adalah ...`;opts=[correct-2,correct,correct+2,correct+5];ans=1;e=`${x} + ${y} = ${correct}.`;}
+        else if(mode===2){const x=i+12,y=i%7+2,correct=x-y;q=`Hasil dari ${x} − ${y} adalah ...`;opts=[correct-2,correct,correct+1,correct+3];ans=1;e=`${x} − ${y} = ${correct}.`;}
+        else if(mode===3){const x=(i%8)+2,y=(i%6)+2,correct=x*y;q=`Hasil dari ${x} × ${y} adalah ...`;opts=[correct-2,correct,correct+2,correct+4];ans=1;e=`${x} × ${y} = ${correct}.`;}
+        else if(mode===4){const y=(i%8)+2,correct=i%8+1,x=correct*y;q=`Hasil dari ${x} ÷ ${y} adalah ...`;opts=[correct-2,correct,correct+1,correct+3];ans=1;e=`${x} ÷ ${y} = ${correct}.`;}
+        else if(mode===5){const x=i%40+10,correct=x+1;q=`Bilangan setelah ${x} adalah ...`;opts=[correct-2,correct,correct+2,correct+3];ans=1;e=`Bilangan setelah ${x} adalah ${correct}.`;}
+        else if(mode===6){const x=(i%9)+10,correct=x+1;q=`Manakah bilangan yang lebih besar dari ${x}?`;opts=[x-2,x-1,correct,x-3];ans=2;e=`${correct} lebih besar dari ${x}.`;}
+        else if(mode===7){const n=(i%9)+2,correct=n*2;q=`Ada ${n} kelompok, masing-masing berisi 2 benda. Jumlah benda seluruhnya ...`;opts=[correct-1,correct,correct+1,correct+2];ans=1;e=`${n} × 2 = ${correct}.`;}
+        else if(mode===8){const n=(i%8)+2,correct=n;q=`Setengah dari ${n*2} adalah ...`;opts=[correct-2,correct,correct+1,correct+2];ans=1;e=`Setengah dari ${n*2} adalah ${correct}.`;}
+        else if(mode===9){q=`Bentuk dengan 4 sisi sama panjang disebut ...`;opts=["segitiga","persegi","lingkaran","trapesium"];ans=1;e="Persegi memiliki empat sisi sama panjang.";}
+        else {const n=(i%5)+2,correct=n*10;q=`${n} puluhan sama dengan ...`;opts=[correct-10,correct,correct+10,correct+20];ans=1;e=`${n} puluhan = ${correct}.`;}
+      } else if (band === "sd-high") {
+        if(mode<=2){const x=100+i,y=25+(i%25),correct=x+y;q=`Hasil dari ${x} + ${y} adalah ...`;opts=[correct-10,correct,correct+10,correct+20];ans=1;e=`${x} + ${y} = ${correct}.`;}
+        else if(mode===3){const x=12+(i%15),y=3+(i%7),correct=x*y;q=`Hasil dari ${x} × ${y} adalah ...`;opts=[correct-3,correct,correct+3,correct+6];ans=1;e=`${x} × ${y} = ${correct}.`;}
+        else if(mode===4){const y=4+(i%8),correct=5+(i%12),x=y*correct;q=`Hasil dari ${x} ÷ ${y} adalah ...`;opts=[correct-2,correct,correct+2,correct+4];ans=1;e=`${x} ÷ ${y} = ${correct}.`;}
+        else if(mode===5){const n=(i%8)+2;q=`Pecahan yang senilai dengan ${n}/${n+1} adalah ...`;opts=[`${n+1}/${n+2}`,`${n*2}/${(n+1)*2}`,`${n+1}/${n}`,`${n*2}/${n+1}`];ans=1;e=`${n}/${n+1} = ${n*2}/${(n+1)*2}.`;}
+        else if(mode===6){const side=(i%8)+4,correct=4*side;q=`Keliling persegi dengan sisi ${side} cm adalah ...`;opts=[`${2*side} cm`,`${3*side} cm`,`${correct} cm`,`${side*side} cm`];ans=2;e=`4 × ${side} = ${correct} cm.`;}
+        else if(mode===7){const p=5+(i%10),l=3+(i%6),correct=p*l;q=`Luas persegi panjang dengan panjang ${p} cm dan lebar ${l} cm adalah ...`;opts=[`${p+l} cm²`,`${correct} cm²`,`${2*(p+l)} cm²`,`${correct+10} cm²`];ans=1;e=`${p} × ${l} = ${correct} cm².`;}
+        else if(mode===8){const n=(i%20)+10,correct=n;q=`25% dari ${n*4} adalah ...`;opts=[correct-5,correct,correct+5,correct+10];ans=1;e=`25% = 1/4, jadi ${n*4} ÷ 4 = ${correct}.`;}
+        else if(mode===9){const n=(i%10)+2,correct=n;q=`FPB dari ${n*2} dan ${n*3} adalah ...`;opts=[n-1,n,n+1,n*2];ans=1;e=`FPB ${n*2} dan ${n*3} adalah ${n}.`;}
+        else {const n=(i%9)+2;q=`Bilangan desimal yang setara dengan ${n}/10 adalah ...`;opts=[`${n/100}`,`${n/10}`,`${n}`,`${n*10}`];ans=1;e=`${n}/10 = ${n/10}.`;}
+      } else if (band === "smp") {
+        if(mode<=2){const x=(i%12)+2,correct=x;q=`Jika ${x}x + ${x} = ${x*(x+1)}, nilai x adalah ...`;opts=[x-1,x,x+1,x+2];ans=1;e=`${x}(x+1) = ${x*(x+1)}, sehingga x = ${correct}.`;}
+        else if(mode===3){const n=(i%12)+2,correct=n*2;q=`FPB dari ${n*4} dan ${n*6} adalah ...`;opts=[n,n*2,n*3,n*4];ans=1;e=`FPB ${n*4} dan ${n*6} adalah ${correct}.`;}
+        else if(mode===4){const n=(i%9)+2,correct=n*10;q=`25% dari ${n*40} adalah ...`;opts=[correct-10,correct,correct+10,correct+20];ans=1;e=`25% × ${n*40} = ${correct}.`;}
+        else if(mode===5){const alas=5+(i%8),tinggi=4+(i%7),correct=alas*tinggi/2;q=`Luas segitiga dengan alas ${alas} cm dan tinggi ${tinggi} cm adalah ...`;opts=[`${correct-5} cm²`,`${correct} cm²`,`${correct+5} cm²`,`${alas*tinggi} cm²`];ans=1;e=`½ × ${alas} × ${tinggi} = ${correct} cm².`;}
+        else if(mode===6){const x=(i%7)+2;q=`Gradien garis y = ${x}x + 3 adalah ...`;opts=[x-1,x,x+1,x+2];ans=1;e=`Koefisien x adalah gradien, yaitu ${x}.`;}
+        else if(mode===7){const n=(i%8)+2,correct=n+8;q=`Suku ke-5 dari barisan aritmetika dengan suku pertama ${n} dan beda 2 adalah ...`;opts=[n+6,correct,n+10,n+12];ans=1;e=`a₅ = ${n} + 4×2 = ${correct}.`;}
+        else if(mode===8){const n=(i%6)+2;q=`Jika peluang suatu kejadian adalah 1/${n}, maka peluang dalam bentuk desimal yang paling dekat adalah ...`;const correct=Number((1/n).toFixed(2));opts=[String(correct),String(Number((1/(n+1)).toFixed(2))),String(Number((2/n).toFixed(2))),String(Number((n/10).toFixed(2)))];ans=0;e=`1 ÷ ${n} ≈ ${correct}.`;}
+        else if(mode===9){const r=(i%7)+2,correct=22*r*r/7;q=`Luas lingkaran dengan jari-jari ${r} cm menggunakan π = 22/7 adalah ...`;opts=[`${correct/2} cm²`,`${correct} cm²`,`${correct+10} cm²`,`${correct+20} cm²`];ans=1;e=`L = 22/7 × ${r}² = ${correct} cm².`;}
+        else {const n=(i%9)+2,correct=8*n;q=`Nilai 2³ × ${n} adalah ...`;opts=[String(4*n),String(6*n),String(correct),String(10*n)];ans=2;e=`2³ × ${n} = 8 × ${n} = ${correct}.`;}
+      } else {
+        if(mode<=2){const x=(i%9)+2,correct=x;q=`Jika f(x)=x²−${x}x+${x}, maka f(${x}) = ...`;opts=[x-2,correct,x+2,x*x];ans=1;e=`f(${x}) = ${x*x}−${x*x}+${x} = ${correct}.`;}
+        else if(mode===3){const n=(i%12)+2;q=`Turunan dari f(x)=x²+${n}x adalah ...`;opts=[`x+${n}`,`2x+${n}`,`2x²+${n}`,`x²+${n}`];ans=1;e="Turunan x² adalah 2x dan turunan nx adalah n.";}
+        else if(mode===4){const n=(i%8)+2;q=`Jika log₂ ${2**n} = x, nilai x adalah ...`;opts=[n-1,n,n+1,n+2];ans=1;e=`2^${n} = ${2**n}, jadi x = ${n}.`;}
+        else if(mode===5){const n=(i%7)+2;q=`Nilai sin 30° × ${n} adalah ...`;opts=[String(n/4),String(n/2),String(n),String(n*2)];ans=1;e=`sin 30° = 1/2, sehingga hasilnya ${n/2}.`;}
+        else if(mode===6){const n=(i%9)+2,correct=n+3;q=`Rata-rata ${n}, ${n+2}, ${n+4}, dan ${n+6} adalah ...`;opts=[n+2,correct,n+4,n+5];ans=1;e=`Jumlahnya ${4*n+12}, dibagi 4 = ${correct}.`;}
+        else if(mode===7){const a=2+(i%5),d=2+(i%4),correct=a+4*d;q=`Suku ke-5 barisan aritmetika dengan a=${a} dan beda ${d} adalah ...`;opts=[a+3*d,correct,a+5*d,a+6*d];ans=1;e=`U5 = a + 4d = ${correct}.`;}
+        else if(mode===8){const n=(i%6)+2;q=`Jika 2x = ${2*n}, nilai x adalah ...`;opts=[n-1,n,n+1,n*2];ans=1;e=`2x = ${2*n}, jadi x = ${n}.`;}
+        else if(mode===9){const n=(i%6)+2;q=`Integral tak tentu dari ${n}x dx adalah ...`;opts=[`${n}x² + C`,`${n/2}x² + C`,`${2*n}x² + C`,`${n}x + C`];ans=1;e=`∫ ${n}x dx = ${n/2}x² + C.`;}
+        else {q=`Varians dan simpangan baku digunakan untuk mengukur ...`;opts=["pusat data","penyebaran data","jumlah data","jenis data"];ans=1;e="Keduanya mengukur penyebaran data.";}
+      }
+      out.push(qItem(q,opts,ans,e,subject));
+    }
+    return out;
+  }
+
+  const datasets = {
+    "Bahasa Indonesia": {
+      sd:["Antonim kata besar adalah ...","Sinonim kata cerdas adalah ...","Kata tanya untuk menanyakan waktu adalah ...","Tanda baca untuk mengakhiri kalimat tanya adalah ...","Gagasan utama paragraf disebut ...","Kata yang menunjukkan kegiatan disebut ...","Tempat membaca dan meminjam buku disebut ...","Paragraf yang menceritakan kejadian disebut ...","Kalimat perintah biasanya menggunakan tanda ...","Kata 'berlari' termasuk kata ..."],
+      smp:["Teks yang menjelaskan proses terjadinya fenomena disebut ...","Kalimat efektif harus ...","Kata 'karena' menyatakan hubungan ...","Bagian teks persuasi yang berisi ajakan disebut ...","Majas perbandingan langsung disebut ...","Diksi berarti ...","Teks prosedur berisi ...","Informasi utama berita harus ...","Kata baku digunakan agar bahasa ...","Simpulan teks berisi ..."],
+      sma:["Teks argumentasi menyampaikan pendapat disertai ...","Diksi adalah ...","Kalimat objektif sebaiknya berdasarkan ...","Karya ilmiah memerlukan sumber rujukan untuk ...","Majas metafora membandingkan secara ...","Tesis dalam teks eksposisi berisi ...","Paragraf deduktif menempatkan gagasan utama di ...","Kohesi berkaitan dengan keterkaitan ...","Kalimat efektif harus logis, jelas, dan ...","Abstrak berisi ringkasan ..."]
+    },
+    "IPAS": {
+      sd:["Bagian tumbuhan yang menyerap air dari tanah adalah ...","Sumber energi utama bagi bumi adalah ...","Perubahan air menjadi uap disebut ...","Hewan pemakan tumbuhan disebut ...","Gaya yang membuat benda jatuh disebut ...","Organ untuk bernapas pada manusia adalah ...","Air membeku menjadi ...","Matahari menghasilkan cahaya dan ...","Lingkungan tempat makhluk hidup tinggal disebut ...","Benda yang dapat ditarik magnet disebut ..."],
+      smp:["Organel yang mengatur aktivitas sel adalah ...","Proses tumbuhan membuat makanan disebut ...","Planet merah adalah ...","Campuran homogen disebut ...","Rangkaian satu jalur arus disebut ...","Satuan gaya dalam SI adalah ...","Perubahan wujud gas menjadi cair disebut ...","Zat dengan pH kurang dari 7 bersifat ...","Sistem peredaran darah manusia menggunakan organ utama ...","Sumber energi terbarukan contohnya ..."],
+      sma:["Hukum Newton I berkaitan dengan ...","DNA menyimpan ...","pH larutan netral sekitar ...","Jika frekuensi naik pada cepat rambat tetap, panjang gelombang ...","Atmosfer paling banyak mengandung ...","Mitokondria merupakan tempat utama ...","Ikatan kovalen terjadi karena ...","Fotosintesis menggunakan energi ...","Gelombang elektromagnetik tidak memerlukan ...","Hukum kekekalan energi menyatakan energi ..."]
+    },
+    "Pendidikan Pancasila": {
+      sd:["Sila pertama Pancasila berbunyi ...","Bekerja bersama disebut ...","Menghargai perbedaan disebut ...","Lambang sila ketiga adalah ...","Musyawarah bertujuan mencapai ...","Aturan di sekolah harus ...","Contoh sikap adil adalah ...","Menolong teman merupakan sikap ...","Hak dan kewajiban harus ...","Persatuan membuat hidup menjadi ..."],
+      smp:["Pancasila berkedudukan sebagai dasar ...","UUD 1945 merupakan hukum ...","Musyawarah mencerminkan sila ke ...","Bhinneka Tunggal Ika berarti ...","Demokrasi menempatkan rakyat sebagai ...","Norma hukum memiliki sanksi yang ...","Hak asasi manusia melekat sejak ...","Gotong royong memperkuat ...","Kewajiban warga negara harus ...","Peraturan dibuat untuk menciptakan ..."],
+      sma:["Pancasila sebagai ideologi berarti menjadi ...","Konstitusi Indonesia adalah ...","Demokrasi Pancasila mengutamakan ...","Kedaulatan rakyat berarti kekuasaan tertinggi berada pada ...","Hak warga negara harus diimbangi dengan ...","Negara hukum menempatkan hukum sebagai ...","Persamaan kedudukan warga negara berarti ...","Musyawarah mufakat menekankan ...","Bhinneka Tunggal Ika menjadi semboyan ...","Keadilan sosial berkaitan dengan ..."]
+    },
+    "Seni": {
+      sd:["Merah, kuning, dan biru termasuk warna ...","Gendang dimainkan dengan cara ...","Karya dengan panjang dan lebar disebut ...","Garis horizontal memberi kesan ...","Tempo cepat disebut ...","Lagu dinyanyikan menggunakan ...","Patung termasuk karya seni ...","Campuran merah dan kuning menghasilkan ...","Alat musik tiup contohnya ...","Pola hias digunakan untuk ..."],
+      smp:["Unsur seni rupa yang berupa jejak titik bergerak disebut ...","Komposisi berkaitan dengan ...","Perspektif digunakan untuk memberi kesan ...","Tempo menunjukkan ...","Dinamika musik menunjukkan perubahan ...","Teknik arsir menggunakan ...","Kolase dibuat dengan menempelkan ...","Harmoni berkaitan dengan keselarasan ...","Ilustrasi berfungsi memperjelas ...","Karya tiga dimensi memiliki ..."],
+      sma:["Prinsip keseimbangan dalam seni rupa mengatur ...","Kontras menciptakan perbedaan yang ...","Perspektif linear menggunakan garis ...","Timbre adalah warna ...","Polifoni berarti beberapa melodi ...","Estetika membahas ...","Seni instalasi menekankan hubungan karya dengan ...","Komposisi musik mengatur unsur ...","Kritik seni sebaiknya didukung ...","Apresiasi seni melibatkan proses ..."]
+    },
+    "PJOK": {
+      sd:["Sebelum olahraga sebaiknya melakukan ...","Gerak berpindah tempat disebut gerak ...","Latihan daya tahan dapat dilakukan dengan ...","Menjaga kebersihan tubuh membantu ...","Push-up melatih otot ...","Minum air membantu mencegah ...","Permainan sepak bola menggunakan ... untuk menendang","Sikap awal sebelum berlari adalah ...","Peregangan membantu menjaga ...","Istirahat cukup penting bagi ..."],
+      smp:["Pemanasan bertujuan menyiapkan ...","Latihan aerobik meningkatkan ...","Push-up terutama melatih ...","Kebugaran jasmani mencakup daya tahan dan ...","Dehidrasi berarti kekurangan ...","Teknik dasar bola voli salah satunya ...","Dalam sepak bola, penjaga gawang bertugas ...","Lari jarak jauh melatih ...","Pendinginan dilakukan setelah ...","Pola hidup sehat mencakup aktivitas fisik dan ..."],
+      sma:["VO2 max berkaitan dengan kemampuan ...","Latihan interval memadukan periode kerja dan ...","Prinsip overload berarti beban latihan ...","Daya tahan kardiorespirasi berkaitan dengan kerja ...","Pemulihan penting untuk adaptasi ...","Fleksibilitas berkaitan dengan luas gerak ...","Cedera olahraga perlu ditangani dengan ...","Latihan kekuatan dapat menggunakan ...","Asupan cairan penting untuk menjaga ...","Kebugaran jasmani mendukung ..."]
+    }
+  };
+  const answers = {
+    "Bahasa Indonesia":{
+      sd:[["kecil","besar","tinggi","rendah"],["pandai","cerdas","malas","lemah"],["kapan","siapa","apa","mengapa"],["tanya","titik","koma","seru"],["ide pokok","judul","kata kunci","penutup"],["kerja","kegiatan","benda","sifat"],["perpustakaan","pasar","kantin","lapangan"],["narasi","persuasi","argumentasi","deskripsi"],["seru","tanya","koma","titik"],["kegiatan","benda","sifat","tempat"]],
+      smp:[["eksplanasi","narasi","puisi","iklan"],["jelas dan hemat","panjang","berulang","tanpa subjek"],["sebab","tujuan","pilihan","waktu"],["pernyataan ajakan","judul","orientasi","koda"],["metafora","ironi","hiperbola","litotes"],["pilihan kata","judul","paragraf","kalimat"],["langkah-langkah","pendapat","tokoh","latar"],["akurat","panjang","berima","lucu"],["baku dan jelas","rumit","asing","bebas"],["inti pembahasan","sampul","daftar isi","judul"]],
+      sma:[["alasan dan bukti","warna","tokoh","rima"],["pilihan kata","jumlah kata","judul","paragraf"],["data dan fakta","selera","dugaan","emosi"],["menunjukkan dasar informasi","memperindah","memperpendek","menghapus data"],["langsung","berulang","acak","berlawanan"],["pendapat utama penulis","daftar pustaka","judul","contoh"],["awal paragraf","tengah","akhir","judul"],["antarunsur bahasa","warna","tokoh","gambar"],["hemat","panjang","asing","ambigu"],["isi pokok karya","sampul","lampiran","iklan"]]
+    },
+    "IPAS":{
+      sd:[["akar","daun","bunga","buah"],["Matahari","Bulan","awan","angin"],["menguap","mencair","membeku","mengembun"],["herbivor","karnivor","omnivor","insektivor"],["gravitasi","magnet","gesek","pegas"],["paru-paru","lambung","ginjal","kulit"],["es","uap","embun","salju"],["panas","suara","air","tanah"],["habitat","populasi","komunitas","ekosistem"],["besi","kayu","plastik","kertas"]],
+      smp:[["inti sel","ribosom","vakuola","dinding sel"],["fotosintesis","respirasi","difusi","fermentasi"],["Mars","Venus","Jupiter","Saturnus"],["larutan","suspensi","unsur","endapan"],["seri","paralel","campuran","terbuka"],["newton","joule","watt","pascal"],["mengembun","menguap","mencair","membeku"],["asam","basa","netral","garam"],["jantung","paru-paru","otak","hati"],["surya","batu bara","minyak bumi","gas alam"]],
+      sma:[["inersia","gaya","energi","momentum"],["informasi genetik","energi panas","air","mineral"],["7","0","5","14"],["menurun","meningkat","tetap","nol"],["nitrogen","oksigen","karbon dioksida","hidrogen"],["respirasi sel","fotosintesis","translasi","difusi"],["berbagi elektron","menukar proton","menghilangkan atom","mengubah neutron"],["cahaya","suara","gravitasi","gesekan"],["medium material","waktu","energi","ruang"],["tetap, tetapi dapat berubah bentuk","hilang","bertambah sendiri","selalu nol"]]
+    },
+    "Pendidikan Pancasila":{
+      sd:[["Ketuhanan Yang Maha Esa","Kemanusiaan yang Adil dan Beradab","Persatuan Indonesia","Keadilan Sosial"],["gotong royong","persaingan","perpecahan","egoisme"],["toleransi","memaksa","egois","acuh"],["pohon beringin","bintang","rantai","padi dan kapas"],["keputusan bersama","kemenangan pribadi","pertengkaran","hukuman"],["dipatuhi","dilanggar","diabaikan","diubah sesuka hati"],["membagi tugas secara seimbang","mengambil semua","memihak","mengejek"],["peduli","iri","marah","acuh"],["seimbang","dipisahkan","diabaikan","ditukar"],["rukun","kacau","sendiri","lemah"]],
+      smp:[["negara","sekolah","keluarga","pasar"],["tertinggi","terendah","lokal","tidak tertulis"],["keempat","ketiga","kedua","kelima"],["berbeda-beda tetapi tetap satu","satu bahasa saja","berbeda tanpa persatuan","semua harus sama"],["pemegang kedaulatan","penonton","hakim tunggal","penguasa mutlak"],["tegas dan mengikat","selalu ringan","tidak ada","sukarela"],["lahir","sekolah","bekerja","menikah"],["persatuan","perpecahan","persaingan","ketakutan"],["dilaksanakan","dihindari","ditunda","dipilih"],["ketertiban","kekacauan","perselisihan","ketidakadilan"]],
+      sma:[["pedoman kehidupan berbangsa","aturan permainan","jadwal sekolah","daftar belanja"],["UUD 1945","Pancasila saja","peraturan kelas","keputusan pribadi"],["musyawarah mufakat","kekuasaan tunggal","kemenangan kelompok","paksaan"],["rakyat","satu orang","militer saja","partai tunggal"],["kewajiban","hadiah","hukuman","jabatan"],["landasan utama penyelenggaraan negara","hiasan","pilihan pribadi","aturan rumah"],["setara di hadapan hukum","berbeda berdasarkan status","hanya pejabat","hanya pelajar"],["kesepakatan","paksaan","kebebasan tanpa batas","kemenangan"],["Indonesia","negara lain","organisasi olahraga","sekolah"],["kesejahteraan yang adil","keuntungan satu pihak","persaingan","hukuman"]]
+    },
+    "Seni":{
+      sd:[["primer","sekunder","tersier","netral"],["dipukul","ditiup","digesek","dipetik"],["dua dimensi","tiga dimensi","empat dimensi","gerak"],["tenang","marah","acak","gelap"],["allegro","largo","adagio","andante"],["suara","warna","gerak","cahaya"],["tiga dimensi","dua dimensi","satu dimensi","tanpa dimensi"],["oranye","hijau","ungu","cokelat"],["seruling","gendang","gitar","piano"],["memperindah dan mengisi bidang","menghapus gambar","mengukur waktu","mengubah suara"]],
+      smp:[["garis","warna","tekstur","ruang"],["susunan unsur visual","harga karya","nama seniman","ukuran kertas"],["kedalaman","warna saja","suara","gerak"],["cepat lambat lagu","tinggi nada","keras suara","warna suara"],["keras lembut suara","tinggi rendah","cepat lambat","warna"],["garis-garis","air","tanah","lem"],["bahan-bahan","suara","cahaya","udara"],["nada-nada","garis","ukuran","kertas"],["gambar dan cerita","harga","warna saja","bingkai"],["panjang, lebar, dan tinggi","warna saja","panjang saja","suara"]],
+      sma:[["distribusi visual unsur","harga","nama","ukuran kanvas"],["kuat","samar","sama","netral"],["konstruksi","warna","nada","tekstur"],["bunyi instrumen","harga","tempo","ritme"],["berjalan bersamaan","saling meniadakan","tanpa melodi","hanya satu nada"],["keindahan","harga","ukuran","asal bahan"],["ruang dan konteks","harga","nama","bingkai"],["melodi, harmoni, ritme","warna saja","gambar saja","teks saja"],["analisis dan alasan","selera saja","harga","popularitas"],["mengamati, memahami, dan menilai","menyalin","menjual","menghapus"]]
+    },
+    "PJOK":{
+      sd:[["pemanasan","tidur","duduk","makan banyak"],["lokomotor","diam","nonlokomotor","statis"],["jogging","menonton","tidur","duduk"],["kesehatan","kelelahan","cedera","dehidrasi"],["lengan dan dada","mata","telinga","jari kaki"],["dehidrasi","lapar","kantuk","marah"],["kaki","tangan saja","kepala","bahu"],["siap dan tegak","tidur","duduk","membungkuk"],["kelenturan","kebisingan","warna","tinggi badan"],["pertumbuhan dan kebugaran","kemalasan","haus","cedera"]],
+      smp:[["tubuh","buku","lapangan","bola"],["daya tahan","warna","tinggi badan","berat buku"],["otot lengan dan dada","mata","telinga","rambut"],["kekuatan","kecepatan","kelenturan","semuanya benar"],["cairan tubuh","oksigen saja","garam saja","vitamin saja"],["servis","menulis","berenang","menendang"],["menghalau bola","mencetak gol dengan tangan","mengatur wasit","menjaga penonton"],["daya tahan","kelenturan saja","ketepatan saja","keseimbangan saja"],["latihan inti","sebelum bangun","sebelum makan","saat tidur"],["gizi seimbang","tidur sepanjang hari","makan berlebihan","tanpa aktivitas"]],
+      sma:[["menggunakan oksigen","menghafal","melihat","mendengar"],["istirahat","hukuman","tidur","pemanasan saja"],["ditingkatkan secara bertahap","dihilangkan","selalu sama","diturunkan ke nol"],["jantung dan paru","rambut","mata","kulit saja"],["latihan","kemampuan menurun","cedera saja","tidur"],["sendi","warna kulit","tinggi badan","rambut"],["pertolongan pertama","diabaikan","dipaksa bergerak","ditunda"],["beban tubuh atau alat","buku saja","air saja","musik"],["keseimbangan cairan","warna","tinggi","berat buku"],["kesehatan dan kualitas hidup","kelelahan","rasa lapar","kebosanan"]]
+    }
+  };
+  const key = level === "SD" ? "sd" : level.toLowerCase();
+  const list = datasets[subject]?.[key];
+  const ansList = answers[subject]?.[key];
+  if (!list || !ansList) return [];
+  const out=[];
+  for(let i=0;i<1000;i++){
+    const idx=i%list.length;
+    const choices=[...ansList[idx]];
+    const answer=0;
+    // Make the 100 entries distinct by adding a contextual qualifier while preserving the same answer.
+    const contexts = [
+      `Untuk ${className}, pilih jawaban yang paling tepat.`,
+      "Dalam kegiatan belajar di sekolah, jawaban yang tepat adalah ...",
+      "Perhatikan konsep berikut. Jawaban yang benar adalah ...",
+      "Saat mengerjakan latihan, pilih jawaban yang paling sesuai.",
+      "Manakah pilihan yang paling tepat menurut materi pelajaran?",
+      "Jika kamu memahami materi ini, jawaban yang benar adalah ...",
+      "Pada soal berikut, tentukan pilihan yang paling tepat.",
+      "Gunakan pengetahuan yang sudah dipelajari untuk memilih jawaban.",
+      "Pilih satu jawaban yang paling sesuai dengan konsep tersebut.",
+      "Dalam konteks pembelajaran, pilihan yang benar adalah ..."
+    ];
+    const q = `${contexts[i%contexts.length]} ${list[idx]}`;
+    out.push(qItem(q, choices, answer, `Jawaban benar: ${choices[answer]}.`, subject));
+  }
+  return out;
+}
+
+function makeQuestions(subject, className="SD 1") {
+  if (subject === "GAME CAMPURAN") {
+    const mixed = Object.keys(subjects).flatMap(s => buildBuiltinQuestions(className, s));
+    return shuffleArray(mixed).slice(0, 1000).map((x, i) => ({ ...x, id:i+1 }));
+  }
+  const built = buildBuiltinQuestions(className, subject);
+  if (built.length) return built.map((x,i)=>({ ...x, id:i+1 }));
+  let arr = (subjects[subject] || subjects["Matematika"]).map(x => ({ ...x, subject }));
+  return arr.map((x, i) => ({ ...x, id: i + 1 }));
+}
+
+// IMPORTANT: never send the correct answer (a/e) to students.
+function safeQuestion(q) {
+  if (!q) return null;
+  return { id: q.id, subject: q.subject, q: q.q, opts: q.opts };
+}
+
+function publicRoom(room, socketId) {
+  const viewer = room.sockets.get(socketId);
+  const myTeam = viewer?.teamId ? room.teams.get(viewer.teamId) : null;
+  return {
+    code: room.code,
+    viewerRole: viewer?.role || null,
+    className: room.className,
+    subject: room.subject,
+    difficulty: room.difficulty || "sedang",
+    quizMode: room.quizMode || "team",
+    questionSource: room.questionSource || "local",
+    teacherName: room.teacherName,
+    status: room.status,
+    qIndex: room.qIndex,
+    total: room.questions.length,
+    participantCount: room.teams.size,
+    questionStartedAt: room.questionStartedAt,
+    teams: [...room.teams.values()].map(t => ({
+      id: t.id,
+      name: t.name,
+      score: t.score,
+      members: t.members.map(m => m.name),
+      answered: Object.keys(t.answers).length
+    })),
+    current: room.status === "playing" ? safeQuestion(room.questions[room.qIndex]) : null,
+    questionList: viewer?.role === "teacher" ? room.questions.map((q, i) => ({ id: q.id, number: i + 1, subject: q.subject, q: q.q, opts: q.opts, a: q.a, e: q.e || "" })) : [],
+    myTeamAnswered: viewer?.role === "player" && !!myTeam?.answers?.[room.qIndex]
+  };
+}
+
+function adminResults(room) {
+  const current = room.questions[room.qIndex];
+  return {
+    qIndex: room.qIndex,
+    total: room.questions.length,
+    participantCount: room.teams.size,
+    questionStartedAt: room.questionStartedAt,
+    currentQuestion: safeQuestion(current),
+    rows: [...room.teams.values()].map(t => {
+      const ans = t.answers[room.qIndex];
+      const answered = !!ans;
+      const choice = ans && ans.choice !== null && ans.choice !== undefined ? current.opts[ans.choice] : "BELUM MENJAWAB";
+      return {
+        teamId: t.id,
+        teamName: t.name,
+        answered,
+        choice,
+        choiceIndex: ans?.choice ?? null,
+        submittedBy: ans?.submittedBy?.name || "-",
+        correctAnswer: current.opts[current.a],
+        result: !answered ? "BELUM MENJAWAB" : (ans.correct ? "BENAR" : (ans.skipped ? "DILEWATI" : "SALAH")),
+        points: ans?.points || 0,
+        totalScore: t.score
+      };
+    }),
+    allQuestions: room.questions.map((q, i) => ({
+      number: i + 1,
+      subject: q.subject,
+      question: q.q,
+      correctAnswer: q.opts[q.a],
+      teams: [...room.teams.values()].map(t => {
+        const ans = t.answers[i];
+        return {
+          teamId: t.id,
+          teamName: t.name,
+          submittedBy: ans?.submittedBy?.name || "-",
+          answer: ans && ans.choice !== null && ans.choice !== undefined ? q.opts[ans.choice] : (ans?.skipped ? "DILEWATI" : "BELUM MENJAWAB"),
+          result: !ans ? "BELUM MENJAWAB" : (ans.correct ? "BENAR" : (ans.skipped ? "DILEWATI" : "SALAH")),
+          points: ans?.points || 0
+        };
+      })
+    }))
+  };
+}
+
+function emitRoom(room) {
+  for (const socketId of room.sockets.keys()) {
+    io.to(socketId).emit("roomState", publicRoom(room, socketId));
+  }
+}
+
+function emitAdmin(room) {
+  for (const [socketId, info] of room.sockets.entries()) {
+    if (info.role === "teacher") io.to(socketId).emit("adminResults", adminResults(room));
+  }
+}
+
+io.on("connection", socket => {
+  socket.on("adminAuth", ({ token }, cb) => {
+    const session = validAdminToken(token);
+    if (!session) { socket.data.admin = false; return cb?.({ ok:false, message:"Sesi admin tidak valid atau sudah kedaluwarsa." }); }
+    socket.data.admin = true; socket.data.adminToken = String(token); socket.data.adminName = session.name; socket.data.adminEmail = session.email || "";
+    cb?.({ ok:true, name:session.name });
+  });
+
+  socket.on("reconnectAdmin", ({ code, token }) => {
+    const session = validAdminToken(token);
+    const room = rooms.get(String(code || "").trim().toUpperCase());
+    if (!session || !room || (room.adminToken !== String(token) && String(room.adminEmail || "").toLowerCase() !== String(session.email || "").toLowerCase())) return socket.emit("errorMsg", "Room admin tidak dapat dipulihkan. Silakan login dengan akun Google admin yang sama.");
+    // Jika admin login ulang setelah LOGOUT, sesi token baru mengambil alih kontrol room tanpa menghapus room.
+    room.adminToken = String(token);
+    room.adminEmail = session.email || room.adminEmail || "";
+    socket.data.admin = true; socket.data.adminToken = String(token); socket.data.adminName = session.name; socket.data.adminEmail = session.email || "";
+    room.sockets.set(socket.id, { role:"teacher", name:room.teacherName, email:socket.data.adminEmail || "" });
+    socket.join(room.code);
+    socket.emit("created", { code:room.code, restored:true });
+    emitRoom(room); emitAdmin(room);
+  });
+  socket.on("createRoom", async ({ className, subject, teacherName, quizId, quizMode, difficulty, source, count }, ack) => {
+    if (!socket.data.admin) { socket.emit("errorMsg", "Admin wajib login terlebih dahulu."); return ack?.({ok:false,message:"Admin wajib login terlebih dahulu."}); }
+    let code;
+    do { code = Math.random().toString(36).slice(2, 7).toUpperCase(); } while (rooms.has(code));
+    const finalClass = String(className || "SD 1").trim();
+    const finalSubject = String(subject || "GAME CAMPURAN").trim();
+    const finalDifficulty = String(difficulty || "sedang").trim().toLowerCase();
+    const finalQuizMode = String(quizMode || "team").trim().toLowerCase()==="individual" ? "individual" : "team";
+    const finalCount = Math.min(1000, Math.max(5, Number(count) || 30));
+    const mode = String(source || (OPENAI_API_KEY ? "online" : "local")).toLowerCase();
+    const room = {
+      code, className: finalClass, subject: finalSubject, difficulty: finalDifficulty, quizMode: finalQuizMode, questionSource: mode,
+      teacherName: String(teacherName || "Admin").trim() || "Admin", status: "lobby", qIndex: 0,
+      quizId: String(quizId || "").trim(), questions: [], teams: new Map(), sockets: new Map(),
+      questionStartedAt: null, adminToken: null, adminEmail: socket.data.adminEmail || ""
+    };
+    rooms.set(code, room);
+    room.adminToken = socket.data.adminToken || issueAdminSession(room.teacherName);
+    socket.data.admin = true; socket.data.adminToken = room.adminToken;
+    room.sockets.set(socket.id, { role: "teacher", name: room.teacherName });
+    socket.join(code);
+    socket.emit("created", { code, adminToken: room.adminToken, preparing: true });
+    emitRoom(room); emitAdmin(room);
+    ack?.({ok:true, code, preparing:true});
+
+    try {
+      let questions = [];
+      const saved = quizBank.find(q => q.id === String(quizId || "").trim());
+      if (saved) questions = cleanQuizQuestions(saved.questions);
+      else if (mode === "online" && OPENAI_API_KEY && finalSubject !== "GAME CAMPURAN") {
+        socket.emit("generationStarted", { source: "online", count: finalCount, preparingRoom: true });
+        questions = await generateOnlineQuestions(finalClass, finalSubject, finalCount, finalDifficulty);
+      } else {
+        questions = generatedQuestions(finalClass, finalSubject, finalCount, finalDifficulty);
+      }
+      room.questions = questions;
+      room.status = "lobby";
+      room.qIndex = 0; room.questionStartedAt = null;
+      emitRoom(room); emitAdmin(room);
+      socket.emit("roomReady", { code, count: questions.length, className: finalClass, subject: finalSubject, difficulty: finalDifficulty, quizMode: finalQuizMode, source: mode });
+    } catch (err) {
+      console.error("createRoom question generation error:", err);
+      room.questions = generatedQuestions(finalClass, finalSubject, Math.min(30, finalCount), finalDifficulty);
+      if (isOpenAIRateLimitError(err)) {
+        socket.emit("generationFallback", { reason: "rate_limit", message: `Batas token OpenAI tercapai. Room otomatis memakai ${room.questions.length} soal lokal.` });
+      } else {
+        socket.emit("generationFailed", { message: `AI gagal membuat soal. Room tetap dibuat dengan soal lokal (${room.questions.length} soal).` });
+      }
+      emitRoom(room); emitAdmin(room);
+    }
+  });
+
+  socket.on("joinRoom", ({ code, name, teamName }) => {
+    const room = rooms.get(String(code || "").trim().toUpperCase());
+    if (!room) return socket.emit("errorMsg", "Kode room tidak ditemukan.");
+    if (room.status !== "lobby") return socket.emit("errorMsg", "Permainan sudah dimulai. Tunggu room baru dari admin.");
+
+    const studentName = String(name || "Siswa").trim() || "Siswa";
+    let team;
+    if (room.quizMode === "individual") {
+      // Mode perorang: setiap siswa menjadi peserta mandiri dengan skor/jawaban sendiri.
+      if (room.teams.size >= 100) return socket.emit("errorMsg", "Maksimal 100 siswa untuk kuis perorang.");
+      const baseName = studentName;
+      let displayName = baseName;
+      let n = 2;
+      while ([...room.teams.values()].some(t => t.name.toLowerCase() === displayName.toLowerCase())) displayName = `${baseName} (${n++})`;
+      team = { id: "p" + crypto.randomBytes(5).toString("hex"), name: displayName, score: 0, members: [], answers: {}, individual: true };
+      room.teams.set(team.id, team);
+    } else {
+      let chosenTeamName = String(teamName || "").trim() || `Tim ${room.teams.size + 1}`;
+      team = [...room.teams.values()].find(t => t.name.toLowerCase() === chosenTeamName.toLowerCase());
+      if (!team) {
+        if (room.teams.size >= 12) return socket.emit("errorMsg", "Maksimal 12 tim.");
+        team = { id: "t" + (room.teams.size + 1), name: chosenTeamName, score: 0, members: [], answers: {} };
+        room.teams.set(team.id, team);
+      }
+      if (team.members.length >= 10) return socket.emit("errorMsg", "Tim ini sudah penuh (maksimal 10 siswa).");
+    }
+
+    team.members.push({ id: socket.id, name: studentName });
+    room.sockets.set(socket.id, { role: "player", teamId: team.id, name: studentName });
+    socket.join(room.code);
+    socket.emit("joined", { code: room.code, teamId: team.id, quizMode: room.quizMode });
+    emitRoom(room);
+    emitAdmin(room);
+  });
+
+  // Restore a student session after browser refresh/reconnect. The room itself stays
+  // in memory while the server is running; the student identity is recovered from
+  // sessionStorage on the client.
+  socket.on("reconnectPlayer", ({ code, teamId, name }) => {
+    const room = rooms.get(String(code || "").trim().toUpperCase());
+    if (!room) return socket.emit("errorMsg", "Room tidak ditemukan lagi. Silakan masuk ke room baru.");
+    const tid = String(teamId || "");
+    const team = room.teams.get(tid);
+    if (!team) return socket.emit("errorMsg", "Peserta sebelumnya tidak ditemukan. Silakan bergabung kembali.");
+
+    const studentName = String(name || "Siswa").trim() || "Siswa";
+    team.members = team.members.filter(m => String(m.name).toLowerCase() !== studentName.toLowerCase());
+    if (room.quizMode !== "individual" && team.members.length >= 10) return socket.emit("errorMsg", "Tim ini sudah penuh (maksimal 10 siswa).");
+    team.members.push({ id: socket.id, name: studentName });
+    room.sockets.set(socket.id, { role:"player", teamId: team.id, name:studentName });
+    socket.join(room.code);
+    socket.emit("joined", { code: room.code, teamId: team.id, restored:true, quizMode:room.quizMode });
+    emitRoom(room);
+    emitAdmin(room);
+    if (room.status === "playing") {
+      socket.emit("questionStarted", { qIndex: room.qIndex, total: room.questions.length, startedAt: room.questionStartedAt, current: safeQuestion(room.questions[room.qIndex]) });
+    }
+  });
+
+  // LOGOUT siswa: hapus siswa dari tim/room tanpa mematikan room untuk peserta lain.
+  socket.on("playerLogout", ({ code }, cb) => {
+    const room = rooms.get(String(code || "").trim().toUpperCase());
+    if (!room) { cb?.({ok:true}); return; }
+    const p = room.sockets.get(socket.id);
+    if (!p || p.role !== "player") { cb?.({ok:true}); return; }
+    const team = room.teams.get(p.teamId);
+    if (team) {
+      team.members = team.members.filter(m => m.id !== socket.id);
+      if (team.members.length === 0) room.teams.delete(team.id);
+    }
+    room.sockets.delete(socket.id);
+    socket.leave(room.code);
+    emitRoom(room);
+    emitAdmin(room);
+    cb?.({ok:true, code:room.code});
+  });
+
+  // LOGOUT admin: sesi admin keluar dari halaman/koneksi, tetapi room dan peserta tetap hidup.
+  socket.on("adminLogout", ({ code }, cb) => {
+    const room = rooms.get(String(code || "").trim().toUpperCase());
+    if (!room) { cb?.({ok:true}); return; }
+    const p = room.sockets.get(socket.id);
+    const isAdmin = !!socket.data.admin && String(socket.data.adminToken || "") === String(room.adminToken || "") && p?.role === "teacher";
+    if (!isAdmin) { cb?.({ok:false, message:"Sesi admin tidak valid."}); return; }
+    room.sockets.delete(socket.id);
+    socket.leave(room.code);
+    socket.data.admin = false;
+    emitRoom(room);
+    emitAdmin(room);
+    cb?.({ok:true, code:room.code, roomKept:true});
+  });
+
+  // TUTUP ROOM: semua siswa/admin yang masih terhubung dipaksa keluar, lalu room dihapus.
+  socket.on("closeRoom", ({ code }, cb) => {
+    const room = rooms.get(String(code || "").trim().toUpperCase());
+    if (!room) { cb?.({ok:false, message:"Room tidak ditemukan."}); return; }
+    const p = room.sockets.get(socket.id);
+    const isAdmin = !!socket.data.admin && String(socket.data.adminToken || "") === String(room.adminToken || "") && p?.role === "teacher";
+    if (!isAdmin) { cb?.({ok:false, message:"Hanya admin pemilik room yang dapat menutup room."}); return; }
+
+    for (const socketId of room.sockets.keys()) {
+      io.to(socketId).emit("roomClosed", { code: room.code, message:"Room telah ditutup oleh admin. Silakan login kembali untuk mengikuti kuis lain." });
+      const target = io.sockets.sockets.get(socketId);
+      if (target) target.leave(room.code);
+    }
+    rooms.delete(room.code);
+    cb?.({ok:true, code:room.code});
+  });
+
+  socket.on("startGame", ({ code }, cb) => {
+    const room = rooms.get(String(code || "").trim().toUpperCase());
+    if (!room) { cb?.({ ok:false, message:"Room tidak ditemukan. Silakan buat/pulihkan room admin." }); return; }
+
+    // Admin boleh memulai dari socket yang sah, termasuk setelah refresh/reconnect.
+    // Ini mencegah tombol MULAI terlihat aktif tetapi tidak melakukan apa-apa.
+    let p = room.sockets.get(socket.id);
+    const isRoomAdmin = !!socket.data.admin && String(socket.data.adminToken || "") === String(room.adminToken || "");
+    if (!isRoomAdmin) {
+      cb?.({ ok:false, message:"Sesi admin tidak valid. Silakan login Google sebagai admin lagi." });
+      return;
+    }
+    if (!p || p.role !== "teacher") {
+      // Pulihkan peran admin untuk room ini bila koneksi baru belum tercatat sebagai teacher.
+      room.sockets.set(socket.id, { role:"teacher", name:socket.data.adminName || room.teacherName, email:socket.data.adminEmail || "" });
+      socket.join(room.code);
+      p = room.sockets.get(socket.id);
+    }
+    if (room.status !== "lobby") {
+      cb?.({ ok:false, message:room.status === "playing" ? "Permainan sudah berjalan." : "Permainan sudah selesai." });
+      return;
+    }
+    if (!Array.isArray(room.questions) || room.questions.length < 1) {
+      cb?.({ ok:false, message:"Soal belum tersedia. Pilih kuis bawaan atau isi Bank Soal terlebih dahulu." });
+      return;
+    }
+    if (room.teams.size < 1) {
+      cb?.({ ok:false, message:"Belum ada siswa/tim yang bergabung. Minta siswa masuk ke room terlebih dahulu." });
+      return;
+    }
+
+    room.status = "playing";
+    room.qIndex = 0;
+    room.questionStartedAt = Date.now();
+    for (const t of room.teams.values()) { t.score = 0; t.answers = {}; }
+    emitRoom(room);
+    emitAdmin(room);
+    io.to(room.code).emit("questionStarted", { qIndex: 0, total: room.questions.length, startedAt: room.questionStartedAt, current: safeQuestion(room.questions[0]) });
+    cb?.({ ok:true, qIndex:0, total:room.questions.length });
+  });
+
+  socket.on("answer", ({ code, index }) => {
+    const room = rooms.get(String(code || "").toUpperCase());
+    if (!room || room.status !== "playing") return;
+    const p = room.sockets.get(socket.id);
+    if (!p || p.role !== "player") return;
+    const team = room.teams.get(p.teamId);
+    if (!team || team.answers[room.qIndex]) return;
+
+    const q = room.questions[room.qIndex];
+    const choice = Number.isInteger(index) && index >= 0 && index < q.opts.length ? index : null;
+    if (choice === null) return;
+    const correct = choice === q.a;
+    const points = correct ? 100 : 0;
+    team.score += points;
+    team.answers[room.qIndex] = { choice, correct, points, submittedBy: { id: socket.id, name: p.name || "Siswa" } };
+
+    // Students only receive a generic acknowledgement. No correct answer/explanation is sent.
+    socket.emit("answerSaved", { points });
+
+    const lastQuestion = room.qIndex === room.questions.length - 1;
+    const allTeamsAnswered = room.teams.size > 0 && [...room.teams.values()].every(t => !!t.answers[room.qIndex]);
+    if (lastQuestion && allTeamsAnswered) {
+      room.status = "finished";
+      room.questionStartedAt = null;
+      emitRoom(room);
+      emitAdmin(room);
+      io.to(room.code).emit("gameFinished", { code: room.code });
+    } else {
+      emitRoom(room);
+      emitAdmin(room);
+    }
+  });
+
+  // Kept for backward compatibility, but the game no longer exposes a LEWATI button.
+  socket.on("skip", ({ code }) => {
+    const room = rooms.get(String(code || "").toUpperCase());
+    if (!room || room.status !== "playing") return;
+    const p = room.sockets.get(socket.id);
+    if (!p || p.role !== "player") return;
+    const team = room.teams.get(p.teamId);
+    if (!team || team.answers[room.qIndex]) return;
+    team.answers[room.qIndex] = { choice: null, correct: false, points: 0, skipped: true, submittedBy: { id: socket.id, name: p.name || "Siswa" } };
+    socket.emit("answerSaved", { points: 0, skipped: true });
+    const lastQuestion = room.qIndex === room.questions.length - 1;
+    const allTeamsAnswered = room.teams.size > 0 && [...room.teams.values()].every(t => !!t.answers[room.qIndex]);
+    if (lastQuestion && allTeamsAnswered) {
+      room.status = "finished";
+      room.questionStartedAt = null;
+    }
+    emitRoom(room);
+    emitAdmin(room);
+    if (room.status === "finished") io.to(room.code).emit("gameFinished", { code: room.code });
+  });
+
+  socket.on("generateQuestions", async ({ code, className, subject, count, source, difficulty }) => {
+    const room = rooms.get(String(code || "").toUpperCase());
+    const p = room && room.sockets.get(socket.id);
+    if (!room || !p || p.role !== "teacher" || !socket.data.admin) return;
+    if (room.status !== "lobby") return socket.emit("errorMsg", "Generate soal hanya dapat dilakukan sebelum permainan dimulai.");
+    const finalClass = className || room.className;
+    const finalSubject = subject || room.subject;
+    const finalCount = Math.min(1000, Math.max(5, Number(count) || 10));
+    const mode = String(source || "local").toLowerCase();
+    try {
+      socket.emit("generationStarted", { source: mode, count: finalCount });
+      let questions;
+      let actualSource = mode;
+      if (mode === "online") {
+        try {
+          questions = await generateOnlineQuestions(finalClass, finalSubject, finalCount, difficulty || "sedang");
+        } catch (err) {
+          if (!isOpenAIRateLimitError(err)) throw err;
+          console.warn("OpenAI rate limit; using local generator fallback:", err.message);
+          questions = generatedQuestions(finalClass, finalSubject, finalCount, difficulty || "sedang");
+          actualSource = "local-fallback";
+          socket.emit("generationFallback", { reason: "rate_limit", message: "OpenAI sedang mencapai batas token. Soal lokal digunakan otomatis." });
+        }
+      } else {
+        questions = generatedQuestions(finalClass, finalSubject, finalCount, difficulty || "sedang");
+      }
+      room.questions = questions; room.className = finalClass; room.subject = finalSubject; room.qIndex=0; room.questionStartedAt=null;
+      emitRoom(room); emitAdmin(room);
+      socket.emit("questionsGenerated", { count:questions.length, className:room.className, subject:room.subject, source:actualSource, webSearch:actualSource === "online", fallback:actualSource === "local-fallback" });
+    } catch (err) {
+      console.error("generateQuestions error:", err);
+      socket.emit("generationFailed", { message: err.message || "Gagal membuat soal." });
+    }
+  });
+
+  // Persistent bank kuis: ADMIN can save, load, and delete quizzes.
+  socket.on("saveQuiz", ({ code, name, description, questions }) => {
+    const room = rooms.get(String(code || "").toUpperCase());
+    const p = room && room.sockets.get(socket.id);
+    if (!room || !p || p.role !== "teacher" || !socket.data.admin) return;
+    const cleaned = cleanQuizQuestions(questions);
+    if (!String(name || "").trim()) return socket.emit("errorMsg", "Nama kuis wajib diisi.");
+    if (!cleaned.length || cleaned.some(q => !q.q || q.opts.length < 2)) return socket.emit("errorMsg", "Setiap soal harus memiliki pertanyaan dan minimal 2 pilihan.");
+    const now = new Date().toISOString();
+    const id = "quiz-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 7);
+    const quiz = { id, name: String(name).trim(), subject: String(room.subject || "Umum"), description: String(description || "").trim(), builtIn: false, questions: cleaned, updatedAt: now };
+    quizBank = [quiz, ...quizBank.filter(q => !q.builtIn)];
+    saveQuizBank();
+    socket.emit("quizSaved", { quiz: publicQuiz(quiz), quizzes: quizBank.map(publicQuiz) });
+  });
+
+  socket.on("deleteQuiz", ({ code, quizId }) => {
+    const room = rooms.get(String(code || "").toUpperCase());
+    const p = room && room.sockets.get(socket.id);
+    if (!room || !p || p.role !== "teacher" || !socket.data.admin) return;
+    const target = quizBank.find(q => q.id === String(quizId || ""));
+    if (!target) return socket.emit("errorMsg", "Kuis tidak ditemukan.");
+    if (target.builtIn) return socket.emit("errorMsg", "Kuis bawaan tidak dapat dihapus.");
+    quizBank = quizBank.filter(q => q.id !== target.id);
+    saveQuizBank();
+    socket.emit("quizDeleted", { quizzes: quizBank.map(publicQuiz) });
+  });
+
+  // ADMIN dapat mengelola bank soal selama room masih di lobby.
+  socket.on("saveQuestions", ({ code, questions }) => {
+    const room = rooms.get(String(code || "").toUpperCase());
+    if (!room) return;
+    const p = room.sockets.get(socket.id);
+    if (!p || p.role !== "teacher") return;
+    if (room.status !== "lobby") return socket.emit("errorMsg", "Soal hanya dapat diubah sebelum permainan dimulai.");
+    if (!Array.isArray(questions) || questions.length < 1) return socket.emit("errorMsg", "Minimal harus ada 1 soal.");
+
+    const cleaned = questions.map((q, i) => {
+      const opts = Array.isArray(q.opts) ? q.opts.map(v => String(v ?? "").trim()).filter(Boolean).slice(0, 4) : [];
+      const answer = Number(q.a);
+      return {
+        id: i + 1,
+        subject: String(q.subject || room.subject || "Umum").trim() || "Umum",
+        q: String(q.q || "").trim(),
+        opts,
+        a: Number.isInteger(answer) && answer >= 0 && answer < opts.length ? answer : 0,
+        e: String(q.e || "").trim()
+      };
+    });
+    if (cleaned.some(q => !q.q || q.opts.length < 2)) return socket.emit("errorMsg", "Setiap soal harus memiliki pertanyaan dan minimal 2 pilihan jawaban.");
+    room.questions = cleaned;
+    room.qIndex = 0;
+    room.questionStartedAt = null;
+    emitRoom(room);
+    emitAdmin(room);
+    socket.emit("questionsSaved", { count: room.questions.length });
+  });
+
+  // Hanya ADMIN yang dapat memindahkan permainan ke soal berikutnya.
+  socket.on("nextQuestion", ({ code }) => {
+    const room = rooms.get(String(code || "").toUpperCase());
+    if (!room) return;
+    const p = room.sockets.get(socket.id);
+    if (!p || p.role !== "teacher") return;
+
+    if (room.qIndex < room.questions.length - 1) {
+      room.qIndex++;
+      room.questionStartedAt = Date.now();
+      emitRoom(room);
+      emitAdmin(room);
+      io.to(room.code).emit("questionStarted", { qIndex: room.qIndex, total: room.questions.length, startedAt: room.questionStartedAt, current: safeQuestion(room.questions[room.qIndex]) });
+    } else {
+      room.status = "finished";
+      room.questionStartedAt = null;
+      emitRoom(room);
+      emitAdmin(room);
+      io.to(room.code).emit("gameFinished", { code: room.code });
+    }
+  });
+
+  // Review is ADMIN ONLY and contains the answers/correct answers.
+  socket.on("requestReview", ({ code, teamId }) => {
+    const room = rooms.get(String(code || "").toUpperCase());
+    if (!room) return;
+    const p = room.sockets.get(socket.id);
+    if (!p || p.role !== "teacher") return;
+    const t = room.teams.get(teamId);
+    if (!t) return;
+    socket.emit("review", room.questions.map((q, i) => ({
+      number: i + 1,
+      subject: q.subject,
+      question: q.q,
+      teamAnswer: t.answers[i]?.choice === null || t.answers[i]?.choice === undefined ? (t.answers[i]?.skipped ? "DILEWATI" : "BELUM MENJAWAB") : q.opts[t.answers[i].choice],
+      submittedBy: t.answers[i]?.submittedBy?.name || "-",
+      correctAnswer: q.opts[q.a],
+      result: t.answers[i]?.correct ? "BENAR" : (t.answers[i]?.skipped ? "DILEWATI" : (t.answers[i] ? "SALAH" : "BELUM MENJAWAB")),
+      score: t.answers[i]?.points || 0
+    })));
+  });
+
+  socket.on("disconnect", () => {
+    for (const room of rooms.values()) {
+      const p = room.sockets.get(socket.id);
+      if (p?.teamId) {
+        const t = room.teams.get(p.teamId);
+        if (t) t.members = t.members.filter(m => m.id !== socket.id);
+      }
+      room.sockets.delete(socket.id);
+      emitRoom(room);
+      emitAdmin(room);
+    }
+  });
 });
-init().then(()=>server.listen(PORT,()=>console.log(`RAVIXO running on ${PORT}`))).catch(e=>{console.error(e);process.exit(1)});
+
+
+async function ensureBuiltinQuizBank() {
+  const builtins = [];
+  for (const className of ["SD 1","SD 2","SD 3","SD 4","SD 5","SD 6","SMP 7","SMP 8","SMP 9","SMA 10","SMA 11","SMA 12"]) {
+    for (const subject of Object.keys(subjects)) {
+      const id = "builtin-" + className.toLowerCase().replace(/[^a-z0-9]+/g,"-") + "-" + subject.toLowerCase().replace(/[^a-z0-9]+/g,"-");
+      const questions = buildBuiltinQuestions(className, subject);
+      builtins.push({ id, name:`${subject} — ${className} (1.000 Soal)`, subject, className, description:`1.000 soal bawaan untuk ${subject}, ${className}.`, builtIn:true, questions:cleanQuizQuestions(questions), updatedAt:new Date().toISOString() });
+    }
+  }
+  const custom = quizBank.filter(q => !q.builtIn);
+  quizBank = [...builtins, ...custom];
+  if (storageMode === "postgres" && pool) {
+    for (const q of builtins) {
+      await pool.query(
+        `INSERT INTO quiz_bank (id,name,subject,description,built_in,questions,updated_at) VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7)
+         ON CONFLICT (id) DO UPDATE SET name=EXCLUDED.name,subject=EXCLUDED.subject,description=EXCLUDED.description,built_in=EXCLUDED.built_in,questions=EXCLUDED.questions,updated_at=EXCLUDED.updated_at`,
+        [q.id,q.name,q.subject,q.description,true,JSON.stringify(q.questions),q.updatedAt]
+      );
+    }
+    await pool.query(`DELETE FROM quiz_bank WHERE built_in = TRUE AND NOT (id = ANY($1::text[]))`, [builtins.map(q=>q.id)]);
+  } else {
+    fs.writeFileSync(QUIZ_FILE, JSON.stringify(compactQuizBank(quizBank)));
+  }
+}
+
+const PORT = Number(process.env.PORT) || 3000;
+(async () => {
+  quizBank = await loadQuizBank();
+  await ensureBuiltinQuizBank();
+  server.listen(PORT, "0.0.0.0", () => {
+    console.log(`QUIZ NUSANTARA v3.6 running on 0.0.0.0:${PORT} | storage=${storageMode}`);
+  });
+})().catch(err => { console.error("Startup failed:", err); process.exit(1); });
