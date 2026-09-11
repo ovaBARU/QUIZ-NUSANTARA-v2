@@ -1,253 +1,51 @@
-# QUIZ NUSANTARA v3.27 — CLASS-SPLIT 72.000 SOAL
+# RAVIXO — GitHub + Railway Ready
 
-Versi ini memecah bank 72.000 soal menjadi 12 file JSON per kelas agar tidak ada satu file yang mendekati batas upload GitHub Web. Server otomatis membaca semua `data/quiz-bank/bank-XX.json` dan menggabungkannya saat startup.
+RAVIXO is a single-service Express + PostgreSQL social-media application.
 
-- 12 kelas: SD 1–6, SMP 7–9, SMA 10–12
-- 6 mata pelajaran per kelas
-- 1.000 soal per mata pelajaran
-- Total 72.000 soal
-- Tidak ada `data/quizzes.json` besar di paket ini
-- Kompatibel dengan PostgreSQL dan fallback JSON
-- Format soal tetap dikonversi ke format internal normal oleh server
+## Railway
 
-## Upload ke GitHub
-Upload seluruh isi folder proyek, termasuk folder `data/quiz-bank/`. Setiap file bank hanya sekitar beberapa MB atau kurang, sehingga aman untuk GitHub Web.
+1. Upload the CONTENT of this folder to the root of a new GitHub repository. Do not put it inside another `RAVIXO/` subfolder.
+2. In Railway, connect that GitHub repository as the RAVIXO service.
+3. Add a PostgreSQL service to the same Railway project.
+4. Ensure the RAVIXO service receives `DATABASE_URL` from PostgreSQL.
+5. Add `JWT_SECRET` with a long random secret.
+6. Set the service Start Command to `npm start` (or leave the included `railway.toml` in the repository).
+7. Deploy. The app runs the database migration first, then starts Express.
+8. Open `/health`; a healthy service returns JSON with `ok: true`.
 
-### v3.25 — Hasil live & papan skor dalam tombol
+## Important
 
-- Hasil jawaban semua tim/siswa pada halaman admin sekarang berada dalam tombol accordion.
-- Papan skor semua tim/siswa juga berada dalam tombol accordion.
-- Keduanya default tertutup agar halaman admin lebih rapi.
+Do not merge this project with an older repository that has a different `package.json`, `src/`, `database/`, `scripts/`, or a start command such as `npm run migrate` unless you intentionally merge them. The previous Railway error `npm error Missing script: "migrate"` means Railway was executing a `migrate` script that did not exist in the deployed package.json.
 
-# QUIZ NUSANTARA v3.15
-
-Perbaikan utama v3.15:
-- Memperbaiki bug dashboard siswa yang tetap menampilkan Dashboard Admin.
-- Menghapus referensi elemen admin lama yang menyebabkan `renderRoom()` berhenti sebelum UI siswa dirender.
-- Mode siswa (`player`) dipaksa tetap terisolasi dari shell admin.
-- Dashboard siswa menampilkan halaman "📚 Silakan Menunggu" setelah berhasil masuk room.
-- Fitur soal siswa, selesai, rekap admin, dan Tutup Room tetap dipertahankan dari versi sebelumnya.
-
-Versi server/health: 3.15.0
-
-## v3.14
-- Setelah Admin menekan SELESAI pada soal terakhir, Admin langsung masuk ke HASIL AKHIR.
-- Siswa menerima event selesai secara eksplisit dan otomatis diarahkan ke halaman apresiasi setelah kuis tuntas.
-- Ditambahkan sinkronisasi selesai untuk auto-finish saat semua tim sudah menjawab soal terakhir.
-# QUIZ NUSANTARA v3.11
-
-## v3.11 — Rekap Akhir, Tutup Room & Halaman Terima Kasih
-- Pada halaman **HASIL AKHIR** admin tersedia tombol **⛔ TUTUP ROOM** agar guru dapat menutup room setelah rekap selesai.
-- Setelah kuis selesai, siswa diarahkan ke halaman akhir **Kuis Tuntas! Hebat! 🌟** dengan pesan apresiasi dan tanpa menampilkan kunci jawaban.
-- Tampilan siswa dipisahkan tegas dari Dashboard Admin.
-- Mode sesi (`player` / `teacher`) disimpan terpisah agar refresh/tab siswa tidak menghidupkan kembali Dashboard Admin.
-- Lobby siswa menampilkan **📚 Silahkan Menunggu** dan gambar `student-home.png`.
-- Setelah selesai, siswa hanya melihat **🎉 Terima Kasih!** tanpa kunci jawaban/rekapan.
-- Admin mendapatkan rekap semua soal, kunci, jawaban tiap kelompok, hasil, poin, dan nama siswa yang mengirim jawaban.
-- Review per tim juga menampilkan siswa pengirim jawaban.
-- Tetap kompatibel dengan Railway, Google Login, Socket.IO, dan generator AI Kurikulum Merdeka/Pembelajaran Mendalam dari v3.6.
-
-# QUIZ NUSANTARA v3.6
-
-Perbaikan utama: kontrol **MULAI PERMAINAN** admin dibuat lebih kuat setelah siswa bergabung. Server sekarang memberikan status/error yang jelas, memulihkan peran admin pada koneksi admin yang sah setelah refresh/reconnect, memvalidasi room, soal, dan peserta sebelum permainan dimulai, serta mengirim acknowledgement saat permainan berhasil dimulai.
-
-Fitur v3.1/v3.2 tetap: login Google admin, bank 1.000 soal per mata pelajaran/per kelas, multiplayer Socket.IO, stopwatch, dashboard admin, bank soal, bank kuis, generator lokal/Internet+AI, dan sisi siswa tanpa dashboard admin.
-
-## Railway Variables
-- `GOOGLE_CLIENT_ID`
-- `ADMIN_GOOGLE_EMAILS` (opsional untuk allowlist)
-- `OPENAI_API_KEY` (opsional)
-- `OPENAI_MODEL` (opsional, default `gpt-5.6-luna`)
-- `DATABASE_URL` (opsional; gunakan PostgreSQL Railway untuk penyimpanan persisten)
-
-`ADMIN_PASSWORD` tidak diperlukan lagi.
-
-## Perbaikan MULAI PERMAINAN
-1. Admin login dengan Google dan membuat room.
-2. Siswa bergabung.
-3. Admin klik **▶ MULAI PERMAINAN**.
-4. Server memastikan token admin masih sah dan terhubung ke room yang benar.
-5. Jika koneksi admin baru/reconnect belum tercatat sebagai teacher, peran admin dipulihkan otomatis.
-6. Jika berhasil, semua client menerima soal pertama dan stopwatch dimulai.
-7. Jika gagal, admin mendapat pesan penyebab yang jelas, bukan tombol yang diam.
-
-# QUIZ NUSANTARA v3.1 — Railway Ready
-
-Multiplayer quiz sekolah berbasis Node.js + Express + Socket.IO. Siswa masuk memakai kode room. Admin login **hanya menggunakan akun Google**, tanpa password.
-
-## Fitur v3.1
-- **Login Admin dengan Google** menggunakan Google Identity Services.
-- Tidak lagi menggunakan `ADMIN_PASSWORD`.
-- Opsional membatasi admin hanya ke email Google tertentu dengan `ADMIN_GOOGLE_EMAILS`.
-- Room multiplayer real-time.
-- Stopwatch per soal.
-- Bank Soal dan Bank Kuis persisten.
-- **1.000 soal bawaan untuk setiap mata pelajaran dan setiap kelas**:
-  - SD 1–6
-  - SMP 7–9
-  - SMA 10–12
-  - Bahasa Indonesia, Matematika, IPAS, Pendidikan Pancasila, Seni, PJOK
-  - Total 72 paket bawaan × 1.000 soal = **7.200 soal**.
-- Jawaban benar dan penjelasan disimpan di server/admin; siswa hanya menerima pertanyaan dan pilihan.
-- PostgreSQL Railway untuk penyimpanan bank kuis.
-- Generator lokal.
-- Generator Internet + AI menggunakan OpenAI Responses API + web search.
-- API key AI hanya berada di server Railway.
-
-## Konfigurasi Railway
-
-Pada service aplikasi, buka **Variables** dan isi:
-
-```env
-GOOGLE_CLIENT_ID=CLIENT_ID_DARI_GOOGLE_CLOUD
-ADMIN_GOOGLE_EMAILS=guru@sekolah.sch.id
-OPENAI_API_KEY=sk-ISI_API_KEY_ANDA
-OPENAI_MODEL=gpt-5.6-luna
-DATABASE_URL=${{Postgres.DATABASE_URL}}
-```
-
-`ADMIN_GOOGLE_EMAILS` opsional. Jika diisi, hanya email yang tercantum yang boleh menjadi admin. Jika dikosongkan, setiap akun Google dengan email terverifikasi dapat login.
-
-**`ADMIN_PASSWORD` tidak lagi digunakan.** Variabel lama tersebut boleh dihapus dari Railway.
-
-## Membuat Google Client ID
-
-1. Buka Google Cloud Console.
-2. Buat/pilih project.
-3. Aktifkan konfigurasi OAuth consent screen / Google Auth sesuai project.
-4. Buat **OAuth 2.0 Client ID** dengan tipe **Web application**.
-5. Pada **Authorized JavaScript origins**, tambahkan domain Railway aplikasi Anda, misalnya:
-   `https://quiz-nusantara-v2-production.up.railway.app`
-6. Salin **Client ID** (bukan Client Secret) ke `GOOGLE_CLIENT_ID`.
-7. Jika hanya satu guru yang boleh login, masukkan email Google guru ke `ADMIN_GOOGLE_EMAILS`.
-
-Login menggunakan Google diverifikasi server dengan token Google; aplikasi memeriksa issuer, audience/client ID, dan status email terverifikasi.
-
-## PostgreSQL
-
-Jika memakai PostgreSQL Railway, gunakan reference variable:
-
-```env
-DATABASE_URL=${{Postgres.DATABASE_URL}}
-```
-
-Sesuaikan `Postgres` dengan nama service database Anda.
-
-Saat startup, aplikasi otomatis membuat/memperbarui 72 paket bank bawaan sehingga setiap kombinasi kelas + mata pelajaran memiliki 1.000 soal.
-
-## Generator Internet + AI
-
-Tambahkan:
-
-```env
-OPENAI_API_KEY=sk-ISI_API_KEY_ANDA
-OPENAI_MODEL=gpt-5.6-luna
-```
-
-Jika tidak ingin menggunakan AI, aplikasi tetap berjalan menggunakan bank soal bawaan dan generator lokal.
-
-## Deploy
-
-1. Upload/push seluruh isi folder ke GitHub.
-2. Railway akan melakukan deployment.
-3. Tunggu deployment berhasil.
-4. Isi Variables seperti di atas.
-5. Redeploy bila Railway meminta.
-6. Buka website → **Login sebagai Admin**.
-7. Pilih kelas dan mata pelajaran.
-8. Klik **Masuk dengan Google**.
-9. Setelah login, room dibuat dan dapat dimainkan seperti versi sebelumnya.
-
-## Keamanan
-
-- Jangan memasukkan Google Client Secret atau OpenAI API key ke `index.html`.
-- Jangan commit secret ke GitHub.
-- Untuk sekolah, disarankan mengisi `ADMIN_GOOGLE_EMAILS` agar hanya akun guru yang diizinkan.
-
-## Health check
-
-`GET /health` mengembalikan status aplikasi dan versi.
-
-## Start lokal
+## Local
 
 ```bash
 npm install
 npm start
 ```
 
-Default port: `3000`.
+Environment variables:
+- `DATABASE_URL` — PostgreSQL connection string
+- `JWT_SECRET` — required secret for JWT signing
+- `PORT` — optional; Railway provides it automatically
 
+## Media
 
-## v3.6 — Refresh, finish, student lobby, compact UI
+Uploaded media is stored under `uploads/`. Railway service storage can be ephemeral, so production deployments should eventually move media to object storage such as S3/R2/Supabase Storage.
 
-- Memulihkan room Admin dan Siswa setelah refresh browser selama server masih hidup.
-- Soal terakhir otomatis mengakhiri permainan setelah semua tim menjawab.
-- Rekap lengkap jawaban tetap khusus Admin.
-- Siswa mendapat layar terima kasih khusus setelah permainan selesai.
-- Lobby siswa memiliki tampilan menunggu dan gambar siswi belajar.
-- Home dan Live Control Admin dibuat lebih ringkas agar minim scroll.
+### Private chat
+The Messages menu now supports private one-to-one chat. The migration adds a `messages` table automatically, and the server exposes user search plus message send/read endpoints.
 
-## v3.4 — Fix multiplayer state
-- Sesi Admin dipisahkan per-tab menggunakan `sessionStorage`, sehingga browser/tab siswa tidak mewarisi sesi Admin.
-- `roomState` mengirim `viewerRole` agar server menjadi sumber kebenaran role.
-- Event `questionStarted` membawa soal aman saat ini sehingga soal tetap tampil walaupun event diterima tidak berurutan.
-- Saat permainan dimulai/berpindah soal, tampilan Admin dan Siswa dipaksa masuk ke layar game.
+## Fitur terbaru
+- Setiap akun dapat mengunggah dan mengganti foto profil dari Pengaturan.
+- Foto profil tampil di header, sidebar, feed, daftar teman, pesan, dan profil.
+- Menu Teman memiliki tab Teman, Mengikuti, Pengikut, dan Cari Pengguna.
+- Akun yang saling mengikuti ditandai sebagai `👥 Teman`.
+- Tersedia Album Foto dan Album Video, termasuk membuat album, membuka album, mengunggah media ke album, dan rename album.
+- Video portrait tetap ditampilkan portrait di PC dengan `object-fit: contain` dan ukuran tinggi adaptif.
 
+## Google Sign-In
+RAVIXO now supports the official Google Identity Services button and One Tap. Add this Railway variable:
+- `GOOGLE_CLIENT_ID` = OAuth 2.0 Web Client ID from Google Cloud.
 
-## v3.6 — Wizard Jenjang + Kurikulum Merdeka & Pembelajaran Mendalam
-- Setelah login Google, admin memilih jenjang SD/SMP/SMA terlebih dahulu.
-- Langkah berikutnya memilih kelas, mata pelajaran, tingkat kesulitan, dan jumlah soal.
-- Mode Internet + AI menggunakan web search untuk memeriksa referensi pendidikan resmi sebelum menyusun soal.
-- Prompt generator diarahkan pada Kurikulum Merdeka dan pendekatan Pembelajaran Mendalam: mindful, meaningful, joyful serta memahami–mengaplikasi–merefleksi.
-- Pembelajaran Mendalam diperlakukan sebagai pendekatan pembelajaran, bukan nama kurikulum baru.
-- Jika OPENAI_API_KEY tidak tersedia, aplikasi tetap membuat room dengan generator lokal sebagai fallback.
-
-
-### v3.8
-- Tombol LOGOUT Admin tidak menonaktifkan room; peserta tetap berada di room.
-- Tombol TUTUP ROOM mengeluarkan seluruh peserta dan menghapus room aktif.
-- Siswa otomatis kembali ke halaman awal ketika room ditutup.
-- Admin dapat login kembali dengan akun Google yang sama untuk mengambil alih room yang masih aktif.
-- Logo QUIZ NUSANTARA diperbarui dengan identitas visual Tut Wuri Handayani.
-
-
-## v3.10
-- Siswa kembali melihat pertanyaan dan 4 pilihan jawaban saat permainan dimulai.
-- Siswa tidak memiliki tombol LOGOUT.
-- Pada soal terakhir, tombol admin berubah menjadi SELESAI dan membuka rekapan akhir.
-- Rekapan admin menampilkan semua soal, kunci, jawaban setiap tim, pengirim jawaban, serta status BENAR/SALAH/BELUM MENJAWAB.
-
-
-## v3.14
-- Dedicated student dashboard after joining a room.
-- Student browser mode is isolated from stale teacher session/roomState events.
-- Student lobby shows a polished “Silakan Menunggu” screen.
-
-
-## v3.18 — Mode Kuis TIM & PERORANG
-- Admin dapat memilih tipe kuis: Kuis TIM atau Kuis PERORANG.
-- Mode PERORANG membuat setiap siswa memiliki skor dan jawaban mandiri.
-- Mode TIM mempertahankan mekanisme kolaborasi dan satu jawaban per tim.
-- Rekap Admin menyesuaikan label Tim/Siswa secara otomatis.
-
-
-## v3.18 – AI generator lebih stabil
-- Generate AI dipecah menjadi batch maksimal 10 soal agar tidak gagal karena output terlalu besar.
-- Structured Outputs mewajibkan tepat 4 opsi dan jumlah soal per batch.
-- Menangani status incomplete/failed dari Responses API dengan pesan error yang lebih jelas.
-- Tetap mendukung web search dan GPT-5.6 Luna.
-
-
-### v3.20 — AI hemat token + fallback otomatis
-- Generator AI memakai batch kecil (5 soal), prompt lebih ringkas, schema JSON minimal, dan batas output 3.000 token.
-- Web Search tetap aktif dengan konteks `low` agar lebih hemat token.
-- Error HTTP 429 / rate limit / TPM OpenAI dideteksi otomatis.
-- Jika AI terkena rate limit, QUIZ NUSANTARA otomatis beralih ke generator lokal tanpa menggagalkan pembuatan soal/room.
-- Admin mendapat notifikasi bahwa generator lokal sedang digunakan.
-- API key OpenAI tetap disimpan hanya di Railway Variables.
-
-
-## Perubahan v3.27
-- Tombol "📝 Hasil Jawaban Semua Tim/Siswa" pada Live Control Center dihapus.
-- Live Control Center hanya menampilkan Papan Skor Semua Tim/Siswa.
-- Rekap lengkap jawaban tetap tersedia pada halaman selesai melalui menu Rekap Jawaban.
+In the Google Cloud OAuth client, add the exact RAVIXO Railway domain as an authorized JavaScript origin. Google Sign-In can automatically sign in existing Google accounts. For a brand-new RAVIXO account, Google does not provide the user's phone number to the site through standard Sign in with Google, so RAVIXO asks for the phone number once before creating the account. Private/friends/selected post interactions are also checked server-side, so clients cannot bypass post privacy by calling comment/like/share/view endpoints directly.

@@ -1,18 +1,22 @@
 {
-  "name": "quiz-nusantara",
-  "version": "3.27.0",
+  "name": "ravixo",
+  "version": "1.0.3",
   "private": true,
-  "description": "QUIZ NUSANTARA - multiplayer quiz dengan rekapan semua tim dan peserta tanpa tabel horizontal",
-  "main": "server.js",
+  "type": "module",
   "scripts": {
-    "start": "node server.js"
+    "start": "npm run migrate && node server.js",
+    "migrate": "node migrate.js",
+    "dev": "node --watch server.js"
   },
   "engines": {
     "node": ">=20"
   },
   "dependencies": {
+    "bcryptjs": "^2.4.3",
     "express": "^4.21.2",
-    "socket.io": "^4.8.1",
-    "pg": "^8.16.3"
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^1.4.5-lts.1",
+    "pg": "^8.13.1",
+    "ws": "^8.18.0"
   }
 }
